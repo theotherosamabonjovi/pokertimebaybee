@@ -683,6 +683,7 @@ let handInProgress = false;
 let playersToAct = [];
 let stats = { hands:0, wins:0, biggest:0, startStack:STARTING_STACK };
 let npcThinkTimeout = null;
+let runOutTimeout = null;
 
 // ═══════════════════════════════════════════════════════════
 //  LOBBY
@@ -1033,6 +1034,7 @@ function buildDifficultyPanel() {
 // ═══════════════════════════════════════════════════════════
 function buildDeck() {
   deck = [];
+  dealtCardIds = new Set();
   for (let s of SUITS) for (let r of RANKS) deck.push({ rank:r, suit:s });
   shuffle(deck);
 }
@@ -1042,7 +1044,21 @@ function shuffle(arr) {
     [arr[i],arr[j]] = [arr[j],arr[i]];
   }
 }
-function dealCard() { return deck.pop(); }
+let dealtCardIds = new Set();
+function dealCard() {
+  // Pop cards until we find one not already dealt (guards against any state corruption)
+  while (deck.length > 0) {
+    const card = deck.pop();
+    const id = card.rank + card.suit;
+    if (!dealtCardIds.has(id)) {
+      dealtCardIds.add(id);
+      return card;
+    }
+  }
+  // Fallback: should never happen with a clean deck
+  console.error('Deck exhausted unexpectedly');
+  return { rank: '?', suit: '?' };
+}
 
 // ═══════════════════════════════════════════════════════════
 //  CARD RENDERING
@@ -1176,6 +1192,10 @@ function nextActiveSeat(from, steps=1) {
 }
 
 function startHand() {
+  clearTimeout(npcThinkTimeout);
+  clearTimeout(runOutTimeout);
+  runOutTimeout = null;
+
   // Eliminate busted AI players; check humans
   players.forEach(p => {
     if (p.stack <= 0 && p.isAI && !p.eliminated) {
@@ -1359,14 +1379,15 @@ function nextPhase() {
 function runOutBoard() {
   players.forEach(p=>{ p.bet=0; }); currentBet=0; clearActionLabels(); playersToAct=[];
   for (let i=1;i<4;i++) { if(!players[i].folded) renderPlayerCards(i,true); }
-  const needed = 5-communityCards.length;
+  const handId = stats.hands; // snapshot — if a new hand starts, callbacks from this one are stale
   const deal = () => {
+    if (stats.hands !== handId) return; // stale — a new hand started, abort
     if (communityCards.length<3) { communityCards.push(dealCard(),dealCard(),dealCard()); phase='flop'; }
     else if (communityCards.length<4) { communityCards.push(dealCard()); phase='turn'; }
     else if (communityCards.length<5) { communityCards.push(dealCard()); phase='river'; }
     updateUI(); broadcastState();
-    if (communityCards.length<5) setTimeout(deal, 700);
-    else setTimeout(endHand, 700);
+    if (communityCards.length<5) runOutTimeout = setTimeout(deal, 700);
+    else runOutTimeout = setTimeout(endHand, 700);
   };
   deal();
 }
@@ -1409,6 +1430,7 @@ function showWinner(winner, handName) {
 
 function nextHand() {
   document.getElementById('winner-overlay').classList.remove('show');
+  clearTimeout(runOutTimeout); runOutTimeout = null;
   phase='waiting'; handInProgress=false; communityCards=[]; pot=0;
   playersToAct=[];
   players.forEach(p=>{ p.hand=[]; p.bet=0; p.folded=false; });
@@ -1447,50 +1469,84 @@ function npcAction(pid) {
   const p = players[pid];
   const diff = getDiff(pid);
   const handStrength = evaluateHandStrength(pid);
-  const callAmt = Math.min(currentBet-p.bet, p.stack);
-  const callFraction = p.stack>0 ? callAmt/p.stack : 1;
-  const facingBet = currentBet>p.bet;
-  const raiseCapHit = Math.floor(currentBet/BIG_BLIND)>=4;
-  let action;
+  const callAmt = Math.min(currentBet - p.bet, p.stack);
+  const facingBet = currentBet > p.bet;
 
-  if (diff==='easy') {
-    const r=Math.random();
-    if (!facingBet) { action=r<0.08?'raise':'check'; }
-    else {
-      const ft=0.25+callFraction*0.4;
-      if(handStrength<ft) action='fold';
-      else if(!raiseCapHit&&r<0.08) action='raise';
-      else action='call';
-    }
-  } else if (diff==='medium') {
-    const bluff=Math.random()<0.08, eff=bluff?handStrength+0.15:handStrength;
-    if (!facingBet) { action=(!raiseCapHit&&eff>0.72)?'raise':'check'; }
-    else {
-      const ft=0.30+callFraction*0.35;
-      if(!raiseCapHit&&eff>0.72) action='raise';
-      else if(eff>=ft) action='call';
-      else action='fold';
-    }
-  } else {
-    const bluff=Math.random()<0.12,aggr=0.65+Math.random()*0.15;
-    const inPos=pid===dealerIdx||((pid-dealerIdx+4)%4)>((currentPlayerIdx-dealerIdx+4)%4);
+  // Pot odds: fraction of pot we must call — lower = better deal
+  const potAfterCall = pot + callAmt;
+  const potOdds = potAfterCall > 0 ? callAmt / potAfterCall : 0;
+
+  // How big is the call relative to our remaining stack?
+  const callFraction = p.stack > 0 ? callAmt / p.stack : 1;
+
+  // Allow re-raises up to a higher cap (not the tiny 4BB cap from before)
+  const canRaise = currentBet < p.stack * 0.85 && Math.floor(currentBet / BIG_BLIND) < 12;
+
+  let action;
+  const r = Math.random();
+
+  if (diff === 'easy') {
+    // Easy: loose-passive. Calls a lot, rarely raises, folds to huge bets
+    const bluff = r < 0.06;
+    const eff = bluff ? handStrength + 0.10 : handStrength;
     if (!facingBet) {
-      if(!raiseCapHit&&handStrength>0.72) action='raise';
-      else if(!raiseCapHit&&handStrength>0.58&&inPos) action='raise';
-      else if(!raiseCapHit&&bluff&&inPos&&Math.random()<0.35) action='raise';
-      else action='check';
+      action = (canRaise && eff > 0.70) ? 'raise' : 'check';
     } else {
-      const ft=0.28+callFraction*0.38;
-      if(!raiseCapHit&&handStrength>0.75*aggr) action='raise';
-      else if(handStrength>=ft||bluff) action='call';
-      else action='fold';
+      // Always call if the bet is cheap vs pot (good pot odds)
+      if (potOdds < 0.15 && eff > 0.10) { action = 'call'; }
+      else if (callFraction > 0.55 && eff < 0.55) { action = 'fold'; }
+      else if (eff < 0.18) { action = 'fold'; }
+      else if (canRaise && eff > 0.72 && r < 0.30) { action = 'raise'; }
+      else { action = 'call'; }
+    }
+
+  } else if (diff === 'medium') {
+    // Medium: TAG (tight-aggressive). Uses pot odds, re-raises strong hands
+    const bluff = r < 0.14;
+    const eff = bluff ? handStrength + 0.18 : handStrength;
+    if (!facingBet) {
+      if (canRaise && eff > 0.58) { action = 'raise'; }
+      else if (canRaise && eff > 0.42 && r < 0.22) { action = 'raise'; } // probe bet
+      else { action = 'check'; }
+    } else {
+      // Pot odds: if our equity > pot odds, call/raise is profitable
+      const hasOdds = eff > potOdds * 0.80;
+      if (canRaise && eff > 0.62) { action = 'raise'; }
+      else if (hasOdds || (callFraction < 0.10 && eff > 0.12)) { action = 'call'; }
+      else { action = 'fold'; }
+    }
+
+  } else {
+    // Hard: LAG (loose-aggressive). Pot odds, position, re-raises and 3-bets
+    const bluff = r < 0.22;
+    const eff = bluff ? handStrength + 0.24 : handStrength;
+    const inPos = pid === dealerIdx || ((pid - dealerIdx + 4) % 4) > ((currentPlayerIdx - dealerIdx + 4) % 4);
+    if (!facingBet) {
+      if (canRaise && eff > 0.50) { action = 'raise'; }
+      else if (canRaise && (bluff || eff > 0.36) && inPos && r < 0.50) { action = 'raise'; }
+      else if (canRaise && bluff && r < 0.25) { action = 'raise'; } // out-of-pos bluff
+      else { action = 'check'; }
+    } else {
+      // Correctly apply pot odds — always call when the math works
+      const hasOdds = eff >= potOdds * 0.75;
+      if (canRaise && (eff > 0.52 || (bluff && inPos))) { action = 'raise'; }
+      else if (hasOdds || callFraction < 0.07) { action = 'call'; } // tiny bets always call
+      else { action = 'fold'; }
     }
   }
 
-  let raiseAmt = Math.max(currentBet*2, BIG_BLIND*2);
-  if (diff==='medium') raiseAmt=Math.round((raiseAmt+Math.random()*pot*0.5)/50)*50;
-  else if (diff==='hard') raiseAmt=Math.round((raiseAmt+Math.random()*pot*0.75)/50)*50;
-  raiseAmt=Math.min(raiseAmt, p.stack+p.bet);
+  // Raise sizing — varies by difficulty and situation
+  const baseRaise = Math.max(currentBet * 2.5, BIG_BLIND * 3);
+  let raiseAmt;
+  if (diff === 'easy') {
+    raiseAmt = Math.round(baseRaise / 50) * 50;
+  } else if (diff === 'medium') {
+    raiseAmt = Math.round((baseRaise + Math.random() * pot * 0.55) / 50) * 50;
+  } else {
+    // Hard: size relative to pot and hand strength — bigger with stronger hands
+    raiseAmt = Math.round((baseRaise + pot * (0.45 + handStrength * 0.7)) / 50) * 50;
+  }
+  raiseAmt = Math.min(raiseAmt, p.stack + p.bet);
 
   executeAction(pid, action, raiseAmt);
 }
@@ -1863,6 +1919,7 @@ function toggleChat() {
 function goToMainMenu() {
   if (handInProgress && !confirm('Leave the current game and return to the main menu?')) return;
   clearTimeout(npcThinkTimeout);
+  clearTimeout(runOutTimeout); runOutTimeout = null;
   if (peer) { try { peer.destroy(); } catch(e){} peer = null; }
   clientConns.forEach(c => { try { c.conn.close(); } catch(e){} });
   clientConns = [];
