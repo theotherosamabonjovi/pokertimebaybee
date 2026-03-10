@@ -284,11 +284,6 @@
     color:var(--gold-light); letter-spacing:2px; cursor:pointer;
   }
 
-  /* Host-only deal button */
-  #host-controls {
-    position:absolute; bottom:70px; left:50%; transform:translateX(-50%);
-    z-index:100; display:none;
-  }
 
   /* ── CHAT ── */
   #chat-panel {
@@ -401,13 +396,6 @@
     }
 
     #table-scene { order: 3; }
-
-    #host-controls {
-      position: relative !important;
-      bottom: auto; left: auto; transform: none;
-      order: 4;
-      margin: 6px auto 0 auto;
-    }
 
     #difficulty-panel {
       position: relative !important;
@@ -549,6 +537,7 @@
           <div class="card-placeholder"></div>
         </div>
         <div id="phase-label">WAITING</div>
+        <button class="btn btn-deal" id="btn-host-deal" onclick="hostDeal()" style="display:none; margin-top:6px;">Deal Hand</button>
       </div>
       <div class="seat" id="seat-0">
         <div class="player-cards" id="cards-0"></div>
@@ -611,10 +600,6 @@
   <div id="room-badge" style="display:none;" onclick="copyRoomCode()">ROOM: ????</div>
   <div id="net-badge" style="display:none;"><span id="net-status">●</span> <span id="net-label">Connected</span></div>
 
-  <!-- Host deal button -->
-  <div id="host-controls">
-    <button class="btn btn-deal" id="btn-host-deal" onclick="hostDeal()">Deal Hand</button>
-  </div>
 
   <!-- Controls -->
   <div id="controls" style="display:none;">
@@ -988,7 +973,7 @@ function enterGame() {
     initPlayers();
     buildDifficultyPanel();
     document.getElementById('difficulty-panel').style.display = 'block';
-    document.getElementById('host-controls').style.display = 'block';
+    document.getElementById('btn-host-deal').style.display = 'inline-block';
   }
 
   // Mark player's own seat
@@ -1120,8 +1105,8 @@ function updateUI() {
   updateStats();
 
   // Host deal button visibility
-  const hc = document.getElementById('host-controls');
-  if (isHost) hc.style.display = handInProgress ? 'none' : 'block';
+  const dealBtn = document.getElementById('btn-host-deal');
+  if (isHost && dealBtn) dealBtn.style.display = handInProgress ? 'none' : 'inline-block';
   // Next hand button: only host sees it, or solo player
   document.getElementById('btn-next-hand').style.display = isHost ? 'inline-block' : 'none';
 }
@@ -1897,7 +1882,7 @@ function goToMainMenu() {
   gwEl.style.display = '';
   // Hide all other panels via inline style
   const hide = ['stats-panel','difficulty-panel','message-bar','controls',
-    'host-controls','room-badge','net-badge','chat-panel','btn-main-menu'];
+    'btn-host-deal','room-badge','net-badge','chat-panel','btn-main-menu'];
   hide.forEach(id => {
     const el = document.getElementById(id);
     if (el) { el.style.display='none'; el.classList && el.classList.remove('active','show'); }
