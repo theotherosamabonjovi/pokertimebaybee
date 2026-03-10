@@ -104,6 +104,15 @@
   }
   #game-wrapper.active { display:flex; }
 
+  /* ── TABLE SCENE (scales on mobile) ── */
+  #table-scene {
+    position:relative;
+    width:1040px;
+    height:780px;
+    flex-shrink:0;
+    transform-origin:top center;
+  }
+
   /* ── TABLE ── */
   #table {
     width:680px; height:400px;
@@ -112,7 +121,7 @@
     box-shadow:0 0 0 4px #8a6b2a,0 0 0 8px #3d2a0e,0 30px 80px rgba(0,0,0,0.8),inset 0 0 60px rgba(0,0,0,0.3);
     position:relative; overflow:visible;
     display:flex; align-items:center; justify-content:center; flex-direction:column;
-    margin: 160px auto 160px auto;
+    margin: 190px 180px;
   }
   #table::before {
     content:''; position:absolute; inset:0; border-radius:50%;
@@ -338,6 +347,144 @@
     position:absolute; top:10px; left:50%; transform:translateX(-50%) translateX(200px);
     z-index:150;
   }
+
+  /* ═══════════════════════════════════════════════════════════
+     MOBILE RESPONSIVE
+     ═══════════════════════════════════════════════════════════ */
+  @media (max-width: 860px) {
+
+    body { padding-top: 0; justify-content: flex-start; overflow-y: auto; min-height: 100vh; }
+
+    #game-wrapper {
+      flex-direction: column !important;
+      align-items: center !important;
+      justify-content: flex-start !important;
+      min-height: 100vh;
+      padding-bottom: 16px;
+    }
+
+    /* Table scene: shrink to fit viewport */
+    #table-scene {
+      /* width/height/transform set by JS */
+      flex-shrink: 0;
+    }
+
+    /* All absolute panels → relative flow */
+    #stats-panel {
+      position: relative !important;
+      top: auto; left: auto;
+      order: 2;
+      display: flex !important;
+      flex-direction: row;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: center;
+      gap: 8px 16px;
+      width: 92%;
+      min-width: 0;
+      padding: 8px 12px;
+      margin-top: 6px;
+    }
+    #stats-panel h3 { display: none; }
+    .stat-row { margin-bottom: 0; font-size: 0.7rem; }
+
+    #message-bar {
+      position: relative !important;
+      top: auto; left: auto; transform: none;
+      order: 1;
+      width: 92%;
+      font-size: 0.78rem;
+      padding: 8px 14px;
+      white-space: normal;
+      text-align: center;
+      margin-top: 8px;
+    }
+
+    #table-scene { order: 3; }
+
+    #host-controls {
+      position: relative !important;
+      bottom: auto; left: auto; transform: none;
+      order: 4;
+      margin: 6px auto 0 auto;
+    }
+
+    #difficulty-panel {
+      position: relative !important;
+      top: auto; right: auto;
+      order: 5;
+      width: 92%;
+      min-width: 0;
+      margin: 6px auto 0 auto;
+    }
+
+    #controls {
+      position: relative !important;
+      bottom: auto; left: auto; transform: none;
+      order: 6;
+      width: 92%;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 6px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      margin: 4px auto 0 auto;
+    }
+    #raise-area {
+      width: 100%;
+      justify-content: center;
+      order: 99;
+    }
+    .btn { font-size: 0.78rem; padding: 9px 14px; }
+
+    #chat-panel {
+      position: relative !important;
+      bottom: auto; left: auto;
+      order: 7;
+      width: 92%;
+      margin: 6px auto 0 auto;
+    }
+    #chat-messages { height: 100px; }
+
+    #net-badge, #room-badge {
+      position: relative !important;
+      bottom: auto; right: auto;
+      order: 8;
+      display: inline-block;
+      margin: 4px 4px 0 4px;
+    }
+
+    #btn-main-menu {
+      position: absolute !important;
+      top: 8px;
+      right: 8px;
+      left: auto;
+      transform: none;
+      order: 0;
+      z-index: 200;
+    }
+
+    /* Overlays: fixed so they cover the full mobile screen */
+    #winner-overlay, #bust-overlay {
+      position: fixed !important;
+    }
+
+    #winner-box, #bust-box {
+      padding: 28px 24px;
+      margin: 0 16px;
+      width: calc(100% - 32px);
+      max-width: 360px;
+    }
+    #winner-title { font-size: 1.5rem; }
+    #winner-cards { flex-wrap: wrap; justify-content: center; }
+  }
+
+  @media (max-width: 480px) {
+    #controls { gap: 5px; padding: 8px; }
+    .btn { font-size: 0.72rem; padding: 8px 10px; }
+    #raise-input { width: 65px; }
+    .raise-label { display: none; }
+  }
 </style>
 </head>
 <body>
@@ -390,115 +537,125 @@
 
 <!-- ══════════════ GAME ══════════════ -->
 <div id="game-wrapper">
-  <div id="table">
-    <div id="community-area">
-      <div id="pot-display">POT: $0</div>
-      <div id="community-cards">
-        <div class="card-placeholder"></div><div class="card-placeholder"></div>
-        <div class="card-placeholder"></div><div class="card-placeholder"></div>
-        <div class="card-placeholder"></div>
+
+  <!-- Table scene (scaled on mobile) -->
+  <div id="table-scene">
+    <div id="table">
+      <div id="community-area">
+        <div id="pot-display">POT: $0</div>
+        <div id="community-cards">
+          <div class="card-placeholder"></div><div class="card-placeholder"></div>
+          <div class="card-placeholder"></div><div class="card-placeholder"></div>
+          <div class="card-placeholder"></div>
+        </div>
+        <div id="phase-label">WAITING</div>
       </div>
-      <div id="phase-label">WAITING</div>
+      <div class="seat" id="seat-0">
+        <div class="player-cards" id="cards-0"></div>
+        <div class="player-info" id="info-0">
+          <div class="player-name" id="pname-0">You</div>
+          <div class="player-stack" id="stack-0">$10,000</div>
+          <div class="player-bet" id="bet-0"></div>
+          <div class="player-action-label" id="action-label-0"></div>
+        </div>
+      </div>
+      <div class="seat" id="seat-1">
+        <div class="player-info" id="info-1">
+          <div class="player-name" id="pname-1">Seat 2</div>
+          <div class="player-stack" id="stack-1">$10,000</div>
+          <div class="player-bet" id="bet-1"></div>
+          <div class="player-action-label" id="action-label-1"></div>
+        </div>
+        <div class="player-cards" id="cards-1"></div>
+      </div>
+      <div class="seat" id="seat-2">
+        <div class="player-cards" id="cards-2"></div>
+        <div class="player-info" id="info-2">
+          <div class="player-name" id="pname-2">Seat 3</div>
+          <div class="player-stack" id="stack-2">$10,000</div>
+          <div class="player-bet" id="bet-2"></div>
+          <div class="player-action-label" id="action-label-2"></div>
+        </div>
+      </div>
+      <div class="seat" id="seat-3">
+        <div class="player-info" id="info-3">
+          <div class="player-name" id="pname-3">Seat 4</div>
+          <div class="player-stack" id="stack-3">$10,000</div>
+          <div class="player-bet" id="bet-3"></div>
+          <div class="player-action-label" id="action-label-3"></div>
+        </div>
+        <div class="player-cards" id="cards-3"></div>
+      </div>
     </div>
-    <div class="seat" id="seat-0">
-      <div class="player-cards" id="cards-0"></div>
-      <div class="player-info" id="info-0">
-        <div class="player-name" id="pname-0">You</div>
-        <div class="player-stack" id="stack-0">$10,000</div>
-        <div class="player-bet" id="bet-0"></div>
-        <div class="player-action-label" id="action-label-0"></div>
-      </div>
+  </div><!-- /#table-scene -->
+
+  <!-- Stats -->
+  <div id="stats-panel" style="display:none;">
+    <h3>Stats</h3>
+    <div class="stat-row"><span>Hands</span><span class="stat-val" id="stat-hands">0</span></div>
+    <div class="stat-row"><span>Wins</span><span class="stat-val" id="stat-wins">0</span></div>
+    <div class="stat-row"><span>Best Pot</span><span class="stat-val" id="stat-biggest">$0</span></div>
+    <div class="stat-row"><span>Net P&amp;L</span><span class="stat-val" id="stat-pnl">$0</span></div>
+  </div>
+
+  <!-- Difficulty -->
+  <div id="difficulty-panel" style="display:none;">
+    <h3>AI Difficulty</h3>
+    <div id="diff-rows"></div>
+  </div>
+
+  <!-- Message -->
+  <div id="message-bar" style="display:none;">Welcome!</div>
+
+  <!-- Net badge -->
+  <div id="room-badge" style="display:none;" onclick="copyRoomCode()">ROOM: ????</div>
+  <div id="net-badge" style="display:none;"><span id="net-status">●</span> <span id="net-label">Connected</span></div>
+
+  <!-- Host deal button -->
+  <div id="host-controls">
+    <button class="btn btn-deal" id="btn-host-deal" onclick="hostDeal()">Deal Hand</button>
+  </div>
+
+  <!-- Controls -->
+  <div id="controls" style="display:none;">
+    <button class="btn btn-fold" id="btn-fold" onclick="playerAction('fold')" disabled>Fold</button>
+    <button class="btn btn-check" id="btn-check" onclick="playerAction('check')" disabled>Check</button>
+    <button class="btn btn-call" id="btn-call" onclick="playerAction('call')" disabled>Call $0</button>
+    <div id="raise-area">
+      <span class="raise-label">Raise:</span>
+      <input type="number" id="raise-input" value="200" min="0" step="50">
+      <button class="btn btn-raise" id="btn-raise" onclick="playerAction('raise')" disabled>Raise</button>
     </div>
-    <div class="seat" id="seat-1">
-      <div class="player-info" id="info-1">
-        <div class="player-name" id="pname-1">Seat 2</div>
-        <div class="player-stack" id="stack-1">$10,000</div>
-        <div class="player-bet" id="bet-1"></div>
-        <div class="player-action-label" id="action-label-1"></div>
-      </div>
-      <div class="player-cards" id="cards-1"></div>
-    </div>
-    <div class="seat" id="seat-2">
-      <div class="player-cards" id="cards-2"></div>
-      <div class="player-info" id="info-2">
-        <div class="player-name" id="pname-2">Seat 3</div>
-        <div class="player-stack" id="stack-2">$10,000</div>
-        <div class="player-bet" id="bet-2"></div>
-        <div class="player-action-label" id="action-label-2"></div>
-      </div>
-    </div>
-    <div class="seat" id="seat-3">
-      <div class="player-info" id="info-3">
-        <div class="player-name" id="pname-3">Seat 4</div>
-        <div class="player-stack" id="stack-3">$10,000</div>
-        <div class="player-bet" id="bet-3"></div>
-        <div class="player-action-label" id="action-label-3"></div>
-      </div>
-      <div class="player-cards" id="cards-3"></div>
+    <button class="btn btn-allin" id="btn-allin" onclick="playerAction('allin')" disabled>All-In</button>
+  </div>
+
+  <!-- Winner Overlay -->
+  <div id="winner-overlay">
+    <div id="winner-box">
+      <div id="winner-title">🏆 Winner!</div>
+      <div id="winner-hand"></div>
+      <div id="winner-cards"></div>
+      <div id="winner-amount"></div>
+      <button class="btn btn-deal" id="btn-next-hand" onclick="nextHand()">Next Hand</button>
     </div>
   </div>
-</div>
 
-<!-- Stats -->
-<div id="stats-panel" style="display:none;">
-  <h3>Stats</h3>
-  <div class="stat-row"><span>Hands</span><span class="stat-val" id="stat-hands">0</span></div>
-  <div class="stat-row"><span>Wins</span><span class="stat-val" id="stat-wins">0</span></div>
-  <div class="stat-row"><span>Best Pot</span><span class="stat-val" id="stat-biggest">$0</span></div>
-  <div class="stat-row"><span>Net P&amp;L</span><span class="stat-val" id="stat-pnl">$0</span></div>
-</div>
-
-<!-- Difficulty (only shown for AI seats) -->
-<div id="difficulty-panel" style="display:none;">
-  <h3>AI Difficulty</h3>
-  <div id="diff-rows"></div>
-</div>
-
-<!-- Message -->
-<div id="message-bar" style="display:none;">Welcome!</div>
-
-<!-- Net badge -->
-<div id="room-badge" style="display:none;" onclick="copyRoomCode()">ROOM: ????</div>
-<div id="net-badge" style="display:none;"><span id="net-status">●</span> <span id="net-label">Connected</span></div>
-
-<!-- Host deal button -->
-<div id="host-controls">
-  <button class="btn btn-deal" id="btn-host-deal" onclick="hostDeal()">Deal Hand</button>
-</div>
-
-<!-- Controls -->
-<div id="controls" style="display:none;">
-  <button class="btn btn-fold" id="btn-fold" onclick="playerAction('fold')" disabled>Fold</button>
-  <button class="btn btn-check" id="btn-check" onclick="playerAction('check')" disabled>Check</button>
-  <button class="btn btn-call" id="btn-call" onclick="playerAction('call')" disabled>Call $0</button>
-  <div id="raise-area">
-    <span class="raise-label">Raise:</span>
-    <input type="number" id="raise-input" value="200" min="0" step="50">
-    <button class="btn btn-raise" id="btn-raise" onclick="playerAction('raise')" disabled>Raise</button>
+  <!-- Bust Overlay -->
+  <div id="bust-overlay">
+    <div id="bust-box">
+      <div style="font-family:'Playfair Display',serif;font-size:2.2rem;color:#e07070;margin-bottom:10px;">💸 Busted!</div>
+      <div style="font-size:1rem;color:var(--cream);opacity:0.75;margin-bottom:8px;">You've run out of chips.</div>
+      <div id="bust-stats" style="font-size:0.85rem;color:var(--gold-light);margin-bottom:28px;line-height:1.8;"></div>
+      <button class="btn btn-deal" onclick="newGame()">New Game</button>
+    </div>
   </div>
-  <button class="btn btn-allin" id="btn-allin" onclick="playerAction('allin')" disabled>All-In</button>
-</div>
 
-<!-- Winner Overlay -->
-<div id="winner-overlay">
-  <div id="winner-box">
-    <div id="winner-title">🏆 Winner!</div>
-    <div id="winner-hand"></div>
-    <div id="winner-cards"></div>
-    <div id="winner-amount"></div>
-    <button class="btn btn-deal" id="btn-next-hand" onclick="nextHand()">Next Hand</button>
+  <!-- Main Menu Button -->
+  <div id="btn-main-menu" style="display:none;">
+    <button class="btn" style="background:rgba(0,0,0,0.7);border:1px solid rgba(201,168,76,0.3);color:var(--gold-light);font-size:0.72rem;padding:6px 14px;" onclick="goToMainMenu()">⬅ Menu</button>
   </div>
-</div>
 
-<!-- Bust Overlay -->
-<div id="bust-overlay">
-  <div id="bust-box">
-    <div style="font-family:'Playfair Display',serif;font-size:2.2rem;color:#e07070;margin-bottom:10px;">💸 Busted!</div>
-    <div style="font-size:1rem;color:var(--cream);opacity:0.75;margin-bottom:8px;">You've run out of chips.</div>
-    <div id="bust-stats" style="font-size:0.85rem;color:var(--gold-light);margin-bottom:28px;line-height:1.8;"></div>
-    <button class="btn btn-deal" onclick="newGame()">New Game</button>
-  </div>
-</div>
+</div><!-- /#game-wrapper -->
 
 <script>
 // ═══════════════════════════════════════════════════════════
@@ -840,6 +997,7 @@ function enterGame() {
   setMessage(isHost ? 'You are the host. Press Deal to start!' : 'Waiting for host to deal…');
   updateUI();
   updateControls();
+  scaleTableScene();
 }
 
 function initPlayers() {
@@ -1422,8 +1580,32 @@ function getHandRank(cards) {
 }
 
 // ═══════════════════════════════════════════════════════════
-//  INIT
+//  MOBILE SCALING
 // ═══════════════════════════════════════════════════════════
+function scaleTableScene() {
+  const scene = document.getElementById('table-scene');
+  if (!scene) return;
+  const isMobile = window.innerWidth < 860;
+  if (!isMobile) {
+    scene.style.transform = '';
+    scene.style.marginBottom = '';
+    scene.style.width = '';
+    scene.style.height = '';
+    return;
+  }
+  const naturalW = 1040;
+  const naturalH = 780;
+  const scale = Math.max(0.26, window.innerWidth / naturalW);
+  scene.style.width  = naturalW + 'px';
+  scene.style.height = naturalH + 'px';
+  scene.style.transform = `scale(${scale})`;
+  scene.style.transformOrigin = 'top center';
+  // CSS transform doesn't affect layout flow, compensate with negative margin
+  scene.style.marginBottom = Math.round((naturalH * scale) - naturalH) + 'px';
+}
+
+window.addEventListener('resize', scaleTableScene);
+
 
 // ═══════════════════════════════════════════════════════════
 //  CHAT — SECURE ENCRYPTED CHAT
@@ -1735,7 +1917,8 @@ function goToMainMenu() {
 }
 </script>
 
-<!-- Chat Panel -->
+
+<!-- Chat Panel (inside game-wrapper via JS move, kept here as sibling for layout) -->
 <div id="chat-panel">
   <div id="chat-header" onclick="toggleChat()">
     <span id="chat-header-title">💬 Table Chat</span>
@@ -1750,11 +1933,6 @@ function goToMainMenu() {
       <button id="chat-send" onclick="sendChat()">➤</button>
     </div>
   </div>
-</div>
-
-<!-- Main Menu Button (in-game) -->
-<div id="btn-main-menu" style="display:none;">
-  <button class="btn" style="background:rgba(0,0,0,0.7);border:1px solid rgba(201,168,76,0.3);color:var(--gold-light);font-size:0.72rem;padding:6px 14px;" onclick="goToMainMenu()">⬅ Menu</button>
 </div>
 
 </body>
