@@ -1214,9 +1214,13 @@ function updateControls() {
   document.getElementById('btn-allin').disabled = !myTurn;
   document.getElementById('btn-call').textContent = `Call $${callAmt.toLocaleString()}`;
 
-  const minRaise = Math.max(currentBet*2, BIG_BLIND*2);
+  // "Bet" when no one has bet yet (can check); "Raise" when facing a bet
+  document.getElementById('btn-raise').textContent = canCheck ? 'Bet' : 'Raise';
+
+  const minRaise = Math.max(currentBet * 2, BIG_BLIND * 2);
   const ri = document.getElementById('raise-input');
-  if (parseInt(ri.value)<minRaise) ri.value = minRaise;
+  // Always reset to the minimum — don't carry over inflated values from prior actions
+  ri.value = minRaise;
   ri.min = minRaise;
 }
 
