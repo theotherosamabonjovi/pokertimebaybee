@@ -1472,79 +1472,78 @@ function npcAction(pid) {
   const callAmt = Math.min(currentBet - p.bet, p.stack);
   const facingBet = currentBet > p.bet;
 
-  // Pot odds: fraction of pot we must call — lower = better deal
+  // Pot odds: fraction of the final pot we must pay
   const potAfterCall = pot + callAmt;
   const potOdds = potAfterCall > 0 ? callAmt / potAfterCall : 0;
 
-  // How big is the call relative to our remaining stack?
+  // Stack pressure: how much of our remaining stack is the call
   const callFraction = p.stack > 0 ? callAmt / p.stack : 1;
 
-  // Allow re-raises up to a higher cap (not the tiny 4BB cap from before)
-  const canRaise = currentBet < p.stack * 0.85 && Math.floor(currentBet / BIG_BLIND) < 12;
+  // Bet pressure: bet size relative to pot — large overbets signal strength
+  const betPressure = pot > 0 ? Math.min(callAmt / pot, 2.0) : 0;
+
+  // Allow raises — stop cold when pot-sized bets exceed 10 BBs or threaten stack
+  const canRaise = Math.floor(currentBet / BIG_BLIND) < 10 && callAmt < p.stack * 0.75;
 
   let action;
   const r = Math.random();
 
   if (diff === 'easy') {
-    // Easy: loose-passive. Calls a lot, rarely raises, folds to huge bets
-    const bluff = r < 0.06;
-    const eff = bluff ? handStrength + 0.10 : handStrength;
+    // Loose-passive: calls with any decent hand, folds to real pressure, rarely raises
+    const bluff = r < 0.04;
+    const eff = bluff ? handStrength + 0.08 : handStrength;
     if (!facingBet) {
-      action = (canRaise && eff > 0.70) ? 'raise' : 'check';
+      action = (canRaise && eff > 0.72 && r < 0.20) ? 'raise' : 'check';
     } else {
-      // Always call if the bet is cheap vs pot (good pot odds)
-      if (potOdds < 0.15 && eff > 0.10) { action = 'call'; }
-      else if (callFraction > 0.55 && eff < 0.55) { action = 'fold'; }
-      else if (eff < 0.18) { action = 'fold'; }
-      else if (canRaise && eff > 0.72 && r < 0.30) { action = 'raise'; }
+      // Base fold threshold scales up with bet size and stack risk
+      const foldAt = 0.24 + callFraction * 0.28 + betPressure * 0.12;
+      if (eff < foldAt) { action = 'fold'; }
+      else if (canRaise && eff > 0.76 && r < 0.18) { action = 'raise'; }
       else { action = 'call'; }
     }
 
   } else if (diff === 'medium') {
-    // Medium: TAG (tight-aggressive). Uses pot odds, re-raises strong hands
-    const bluff = r < 0.14;
-    const eff = bluff ? handStrength + 0.18 : handStrength;
+    // TAG: raises good hands, respects big bets, pot-odds aware
+    const bluff = r < 0.08;
+    const eff = bluff ? handStrength + 0.11 : handStrength;
     if (!facingBet) {
-      if (canRaise && eff > 0.58) { action = 'raise'; }
-      else if (canRaise && eff > 0.42 && r < 0.22) { action = 'raise'; } // probe bet
+      if (canRaise && eff > 0.64) { action = 'raise'; }
+      else if (canRaise && eff > 0.50 && r < 0.16) { action = 'raise'; }
       else { action = 'check'; }
     } else {
-      // Pot odds: if our equity > pot odds, call/raise is profitable
-      const hasOdds = eff > potOdds * 0.80;
-      if (canRaise && eff > 0.62) { action = 'raise'; }
-      else if (hasOdds || (callFraction < 0.10 && eff > 0.12)) { action = 'call'; }
+      // Threshold = pot odds + margin that scales with bet pressure
+      const foldAt = potOdds + 0.10 + betPressure * 0.16 + callFraction * 0.10;
+      if (canRaise && eff > 0.68 && r < 0.50) { action = 'raise'; }
+      else if (eff >= foldAt) { action = 'call'; }
       else { action = 'fold'; }
     }
 
   } else {
-    // Hard: LAG (loose-aggressive). Pot odds, position, re-raises and 3-bets
-    const bluff = r < 0.22;
-    const eff = bluff ? handStrength + 0.24 : handStrength;
+    // Hard: position-aware, bluffs selectively, still folds to heavy multi-street pressure
+    const bluff = r < 0.12;
+    const eff = bluff ? handStrength + 0.14 : handStrength;
     const inPos = pid === dealerIdx || ((pid - dealerIdx + 4) % 4) > ((currentPlayerIdx - dealerIdx + 4) % 4);
     if (!facingBet) {
-      if (canRaise && eff > 0.50) { action = 'raise'; }
-      else if (canRaise && (bluff || eff > 0.36) && inPos && r < 0.50) { action = 'raise'; }
-      else if (canRaise && bluff && r < 0.25) { action = 'raise'; } // out-of-pos bluff
+      if (canRaise && eff > 0.56) { action = 'raise'; }
+      else if (canRaise && inPos && (bluff || eff > 0.42) && r < 0.35) { action = 'raise'; }
       else { action = 'check'; }
     } else {
-      // Correctly apply pot odds — always call when the math works
-      const hasOdds = eff >= potOdds * 0.75;
-      if (canRaise && (eff > 0.52 || (bluff && inPos))) { action = 'raise'; }
-      else if (hasOdds || callFraction < 0.07) { action = 'call'; } // tiny bets always call
+      const foldAt = potOdds + 0.07 + betPressure * 0.20 + callFraction * 0.08;
+      if (canRaise && eff > 0.62 && (r < 0.55 || inPos)) { action = 'raise'; }
+      else if (eff >= foldAt || (callFraction < 0.05 && eff > 0.15)) { action = 'call'; }
       else { action = 'fold'; }
     }
   }
 
-  // Raise sizing — varies by difficulty and situation
-  const baseRaise = Math.max(currentBet * 2.5, BIG_BLIND * 3);
+  // Raise sizing
+  const baseRaise = Math.max(currentBet * 2.2, BIG_BLIND * 3);
   let raiseAmt;
   if (diff === 'easy') {
     raiseAmt = Math.round(baseRaise / 50) * 50;
   } else if (diff === 'medium') {
-    raiseAmt = Math.round((baseRaise + Math.random() * pot * 0.55) / 50) * 50;
+    raiseAmt = Math.round((baseRaise + Math.random() * pot * 0.40) / 50) * 50;
   } else {
-    // Hard: size relative to pot and hand strength — bigger with stronger hands
-    raiseAmt = Math.round((baseRaise + pot * (0.45 + handStrength * 0.7)) / 50) * 50;
+    raiseAmt = Math.round((baseRaise + pot * (0.35 + handStrength * 0.45)) / 50) * 50;
   }
   raiseAmt = Math.min(raiseAmt, p.stack + p.bet);
 
