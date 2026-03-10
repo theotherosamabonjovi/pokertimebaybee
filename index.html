@@ -1202,7 +1202,6 @@ function updateControls() {
   const myTurn = handInProgress && currentPlayerIdx===mySeatIdx && playersToAct.length>0 && playersToAct[0]===mySeatIdx;
   const p = players[mySeatIdx];
   if (!p) return;
-  // BB option: in preflop, if no one has raised above BIG_BLIND, BB can check
   const isBBOption = phase === 'preflop' && mySeatIdx === bigBlindIdx && currentBet === BIG_BLIND;
   const canCheck = currentBet===0 || p.bet===currentBet || isBBOption;
   const callAmt = Math.min(currentBet-p.bet, p.stack);
@@ -1214,14 +1213,18 @@ function updateControls() {
   document.getElementById('btn-allin').disabled = !myTurn;
   document.getElementById('btn-call').textContent = `Call $${callAmt.toLocaleString()}`;
 
-  // "Bet" when no one has bet yet (can check); "Raise" when facing a bet
-  document.getElementById('btn-raise').textContent = canCheck ? 'Bet' : 'Raise';
+  // Only update the raise input and button label when it becomes the player's turn,
+  // so AI actions don't cause the field to jump around while the player is watching
+  if (myTurn) {
+    const minRaise = Math.max(currentBet * 2, BIG_BLIND * 2);
+    const ri = document.getElementById('raise-input');
+    ri.value = minRaise;
+    ri.min = minRaise;
 
-  const minRaise = Math.max(currentBet * 2, BIG_BLIND * 2);
-  const ri = document.getElementById('raise-input');
-  // Always reset to the minimum — don't carry over inflated values from prior actions
-  ri.value = minRaise;
-  ri.min = minRaise;
+    // "Bet" when no one has bet yet this round; "Raise" when facing a bet
+    document.getElementById('btn-raise').textContent = canCheck ? 'Bet' : 'Raise';
+    document.getElementById('raise-area').querySelector('.raise-label').textContent = canCheck ? 'Bet:' : 'Raise:';
+  }
 }
 
 // ═══════════════════════════════════════════════════════════
