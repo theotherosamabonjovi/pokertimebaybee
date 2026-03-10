@@ -222,17 +222,19 @@
   .stat-val { color:var(--gold-light); font-weight:600; }
 
   #difficulty-panel {
-    position:absolute; top:10px; right:10px; background:rgba(0,0,0,0.75);
-    border:1px solid rgba(201,168,76,0.3); border-radius:10px; padding:14px 16px;
-    backdrop-filter:blur(8px); z-index:100; min-width:180px;
+    position:absolute; top:10px; right:10px; background:rgba(0,0,0,0.80);
+    border:1px solid rgba(201,168,76,0.3); border-radius:10px; padding:12px 14px;
+    backdrop-filter:blur(8px); z-index:100; min-width:210px; max-width:230px;
   }
-  #difficulty-panel h3 { font-family:'Playfair Display',serif; font-size:0.8rem; color:var(--gold); letter-spacing:2px; text-transform:uppercase; margin-bottom:10px; text-align:center; }
+  #difficulty-panel h3 { font-family:'Playfair Display',serif; font-size:0.75rem; color:var(--gold); letter-spacing:2px; text-transform:uppercase; margin-bottom:10px; text-align:center; }
   .diff-row { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; gap:8px; }
-  .diff-name { font-size:0.75rem; color:var(--cream); min-width:55px; }
+  .diff-name-col { display:flex; flex-direction:column; gap:1px; flex:1; min-width:0; }
+  .diff-name { font-size:0.75rem; color:var(--cream); white-space:nowrap; }
+  .diff-style { font-size:0.60rem; color:rgba(201,168,76,0.55); white-space:nowrap; font-style:italic; }
   .diff-select {
     background:rgba(255,255,255,0.06); border:1px solid rgba(201,168,76,0.3);
     border-radius:4px; color:var(--cream); font-family:'Crimson Text',serif;
-    font-size:0.75rem; padding:3px 6px; cursor:pointer; flex:1;
+    font-size:0.75rem; padding:3px 6px; cursor:pointer; width:70px; flex-shrink:0;
   }
 
   /* ── MESSAGE ── */
@@ -402,9 +404,11 @@
       top: auto; right: auto;
       order: 5;
       width: 92%;
-      min-width: 0;
+      min-width: 0; max-width: 100%;
       margin: 6px auto 0 auto;
     }
+    .diff-row { flex-wrap: nowrap; }
+    .diff-select { width: 80px; }
 
     #controls {
       position: relative !important;
@@ -987,22 +991,62 @@ function enterGame() {
 }
 
 function initPlayers() {
-  const aiNames = ['Atlas','Vera','Duke','Rex'];
+  // Each AI persona: name, and personality traits that shape their play style
+  const aiPersonas = [
+    {
+      name: 'Atlas',
+      style: 'Tight-Aggressive',
+      aggression:   0.72,  // raises frequently when strong
+      bluffFreq:    0.07,  // occasional well-timed bluffs
+      tightness:    0.68,  // folds weak hands readily
+      betSizeMult:  1.10,  // bets close to pot size
+    },
+    {
+      name: 'Vera',
+      style: 'Loose-Passive',
+      aggression:   0.28,  // rarely raises, prefers to call
+      bluffFreq:    0.04,  // almost never bluffs
+      tightness:    0.30,  // calls with wide range
+      betSizeMult:  0.70,  // small bets when she does raise
+    },
+    {
+      name: 'Duke',
+      style: 'Maniac',
+      aggression:   0.90,  // raises almost every hand
+      bluffFreq:    0.28,  // bluffs constantly
+      tightness:    0.20,  // almost never folds pre-river
+      betSizeMult:  1.40,  // large overbets
+    },
+    {
+      name: 'Rex',
+      style: 'Calling Station',
+      aggression:   0.35,
+      bluffFreq:    0.05,
+      tightness:    0.22,  // will call almost anything
+      betSizeMult:  0.85,
+    },
+  ];
+
   players = [];
   for (let i = 0; i < 4; i++) {
     const isHuman = humanSeats.includes(i);
-    let name;
-    if (i === mySeatIdx) name = myName;
-    else if (isHuman) {
+    let name, persona;
+    if (i === mySeatIdx) {
+      name = myName;
+      persona = null;
+    } else if (isHuman) {
       const info = clientConns.find(c => c.seatIdx === i);
       name = info ? info.name : `Player ${i+1}`;
+      persona = null;
     } else {
-      name = aiNames[i];
+      persona = aiPersonas[i];
+      name = persona.name;
     }
     players.push({
       id: i, name, stack: STARTING_STACK,
       hand: [], bet: 0, folded: false, allIn: false,
-      isAI: !isHuman, eliminated: false
+      isAI: !isHuman, eliminated: false,
+      persona: persona
     });
   }
 }
@@ -1010,22 +1054,31 @@ function initPlayers() {
 function buildDifficultyPanel() {
   const container = document.getElementById('diff-rows');
   container.innerHTML = '';
+  let count = 0;
   for (let i = 0; i < 4; i++) {
     if (humanSeats.includes(i)) continue;
     if (players[i] && players[i].eliminated) continue;
-    const aiName = players[i] ? players[i].name : `Seat ${i+1}`;
+    const p = players[i];
+    const style = p && p.persona ? p.persona.style : '';
     container.innerHTML += `
       <div class="diff-row">
-        <span class="diff-name">${aiName}</span>
-        <select class="diff-select" id="diff-${i}">
+        <div class="diff-name-col">
+          <span class="diff-name">${p ? p.name : `Seat ${i+1}`}</span>
+          <span class="diff-style" id="style-label-${i}">${style}</span>
+        </div>
+        <select class="diff-select" id="diff-${i}" onchange="applyDifficulty(${i})">
           <option value="easy">Easy</option>
           <option value="medium" selected>Medium</option>
           <option value="hard">Hard</option>
         </select>
       </div>`;
+    count++;
   }
-  if (container.innerHTML === '') {
-    document.getElementById('difficulty-panel').style.display = 'none';
+  const panel = document.getElementById('difficulty-panel');
+  if (count === 0) {
+    panel.style.display = 'none';
+  } else {
+    panel.style.display = 'block';
   }
 }
 
@@ -1460,6 +1513,47 @@ function newGame() {
 // ═══════════════════════════════════════════════════════════
 //  NPC AI
 // ═══════════════════════════════════════════════════════════
+function applyDifficulty(pid) {
+  const diff = getDiff(pid);
+  const p = players[pid];
+  if (!p || !p.persona) return;
+
+  // Scale persona traits by difficulty without losing the personality character.
+  // Easy  → flatten aggression down, raise tightness (folds more), reduce bluffing
+  // Medium → use the persona as-is
+  // Hard  → amplify aggression, more bluffing, slightly looser
+  const base = p.persona;
+  if (diff === 'easy') {
+    p.persona._eff = {
+      aggression:  base.aggression * 0.55,
+      bluffFreq:   base.bluffFreq  * 0.50,
+      tightness:   Math.min(base.tightness + 0.20, 0.90),
+      betSizeMult: base.betSizeMult * 0.75,
+    };
+  } else if (diff === 'hard') {
+    p.persona._eff = {
+      aggression:  Math.min(base.aggression * 1.25, 0.97),
+      bluffFreq:   Math.min(base.bluffFreq  * 1.60, 0.40),
+      tightness:   Math.max(base.tightness  - 0.15, 0.08),
+      betSizeMult: base.betSizeMult * 1.25,
+    };
+  } else {
+    p.persona._eff = null; // use base values
+  }
+  // Update the style label to reflect difficulty
+  const label = document.getElementById(`style-label-${pid}`);
+  if (label) {
+    const diffLabel = diff === 'easy' ? ' · Easy' : diff === 'hard' ? ' · Hard' : '';
+    label.textContent = base.style + diffLabel;
+  }
+}
+
+function getPersonaTraits(pid) {
+  const p = players[pid];
+  if (!p || !p.persona) return { aggression:0.55, bluffFreq:0.08, tightness:0.45, betSizeMult:1.0 };
+  return p.persona._eff || p.persona;
+}
+
 function getDiff(pid) {
   const el = document.getElementById(`diff-${pid}`);
   return el ? el.value : 'medium';
@@ -1467,84 +1561,53 @@ function getDiff(pid) {
 
 function npcAction(pid) {
   const p = players[pid];
-  const diff = getDiff(pid);
+  const traits = getPersonaTraits(pid);
   const handStrength = evaluateHandStrength(pid);
   const callAmt = Math.min(currentBet - p.bet, p.stack);
   const facingBet = currentBet > p.bet;
 
-  // Pot odds: fraction of the final pot we must pay
   const potAfterCall = pot + callAmt;
   const potOdds = potAfterCall > 0 ? callAmt / potAfterCall : 0;
-
-  // Stack pressure: how much of our remaining stack is the call
   const callFraction = p.stack > 0 ? callAmt / p.stack : 1;
-
-  // Bet pressure: bet size relative to pot — large overbets signal strength
   const betPressure = pot > 0 ? Math.min(callAmt / pot, 2.0) : 0;
-
-  // Allow raises — stop cold when pot-sized bets exceed 10 BBs or threaten stack
   const canRaise = Math.floor(currentBet / BIG_BLIND) < 10 && callAmt < p.stack * 0.75;
+  const inPos = pid === dealerIdx || ((pid - dealerIdx + 4) % 4) > ((currentPlayerIdx - dealerIdx + 4) % 4);
+
+  const r = Math.random();
+  const isBluffing = r < traits.bluffFreq;
+  const eff = isBluffing ? Math.min(handStrength + traits.bluffFreq * 1.2, 1.0) : handStrength;
 
   let action;
-  const r = Math.random();
 
-  if (diff === 'easy') {
-    // Loose-passive: calls with any decent hand, folds to real pressure, rarely raises
-    const bluff = r < 0.04;
-    const eff = bluff ? handStrength + 0.08 : handStrength;
-    if (!facingBet) {
-      action = (canRaise && eff > 0.72 && r < 0.20) ? 'raise' : 'check';
+  if (!facingBet) {
+    // Bet/raise frequency driven by aggression and hand strength
+    const raiseThreshold = 1.0 - traits.aggression; // lower aggression → higher threshold to raise
+    if (canRaise && eff > raiseThreshold) {
+      action = 'raise';
+    } else if (canRaise && isBluffing && inPos && r < traits.aggression * 0.5) {
+      action = 'raise';
     } else {
-      // Base fold threshold scales up with bet size and stack risk
-      const foldAt = 0.24 + callFraction * 0.28 + betPressure * 0.12;
-      if (eff < foldAt) { action = 'fold'; }
-      else if (canRaise && eff > 0.76 && r < 0.18) { action = 'raise'; }
-      else { action = 'call'; }
+      action = 'check';
     }
-
-  } else if (diff === 'medium') {
-    // TAG: raises good hands, respects big bets, pot-odds aware
-    const bluff = r < 0.08;
-    const eff = bluff ? handStrength + 0.11 : handStrength;
-    if (!facingBet) {
-      if (canRaise && eff > 0.64) { action = 'raise'; }
-      else if (canRaise && eff > 0.50 && r < 0.16) { action = 'raise'; }
-      else { action = 'check'; }
-    } else {
-      // Threshold = pot odds + margin that scales with bet pressure
-      const foldAt = potOdds + 0.10 + betPressure * 0.16 + callFraction * 0.10;
-      if (canRaise && eff > 0.68 && r < 0.50) { action = 'raise'; }
-      else if (eff >= foldAt) { action = 'call'; }
-      else { action = 'fold'; }
-    }
-
   } else {
-    // Hard: position-aware, bluffs selectively, still folds to heavy multi-street pressure
-    const bluff = r < 0.12;
-    const eff = bluff ? handStrength + 0.14 : handStrength;
-    const inPos = pid === dealerIdx || ((pid - dealerIdx + 4) % 4) > ((currentPlayerIdx - dealerIdx + 4) % 4);
-    if (!facingBet) {
-      if (canRaise && eff > 0.56) { action = 'raise'; }
-      else if (canRaise && inPos && (bluff || eff > 0.42) && r < 0.35) { action = 'raise'; }
-      else { action = 'check'; }
+    // Fold threshold: base from tightness + pressure scaling
+    // Tight AIs (high tightness) fold more readily; loose AIs need less to call
+    const baseFold = 0.12 + traits.tightness * 0.28;
+    const foldAt = baseFold + potOdds * 0.6 + betPressure * (0.10 + traits.tightness * 0.14) + callFraction * 0.10;
+
+    if (canRaise && eff > (0.55 + (1 - traits.aggression) * 0.20) && r < traits.aggression) {
+      action = 'raise';
+    } else if (eff >= foldAt || (callFraction < 0.05 && eff > 0.10)) {
+      action = 'call';
     } else {
-      const foldAt = potOdds + 0.07 + betPressure * 0.20 + callFraction * 0.08;
-      if (canRaise && eff > 0.62 && (r < 0.55 || inPos)) { action = 'raise'; }
-      else if (eff >= foldAt || (callFraction < 0.05 && eff > 0.15)) { action = 'call'; }
-      else { action = 'fold'; }
+      action = 'fold';
     }
   }
 
-  // Raise sizing
+  // Raise sizing — scaled by persona's betSizeMult
   const baseRaise = Math.max(currentBet * 2.2, BIG_BLIND * 3);
-  let raiseAmt;
-  if (diff === 'easy') {
-    raiseAmt = Math.round(baseRaise / 50) * 50;
-  } else if (diff === 'medium') {
-    raiseAmt = Math.round((baseRaise + Math.random() * pot * 0.40) / 50) * 50;
-  } else {
-    raiseAmt = Math.round((baseRaise + pot * (0.35 + handStrength * 0.45)) / 50) * 50;
-  }
+  const potContrib = pot * (0.35 + handStrength * 0.40) * traits.betSizeMult;
+  let raiseAmt = Math.round((baseRaise + potContrib) / 50) * 50;
   raiseAmt = Math.min(raiseAmt, p.stack + p.bet);
 
   executeAction(pid, action, raiseAmt);
