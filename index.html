@@ -637,8 +637,7 @@
     <div class="stat-row"><span>Wins</span><span class="stat-val" id="stat-wins">0</span></div>
     <div class="stat-row"><span>Best Pot</span><span class="stat-val" id="stat-biggest">$0</span></div>
     <div class="stat-row"><span>Net P&amp;L</span><span class="stat-val" id="stat-pnl">$0</span></div>
-    <div class="stat-row" title="Hands you folded that would have beaten at least one opponent"><span>Fold Regrets</span><span class="stat-val" id="stat-fold-worse">0</span></div>
-    <div class="stat-row" title="Times you won with high card only and all opponents folded"><span>Bluffs</span><span class="stat-val" id="stat-bluffs">0</span></div>
+
   </div>
 
   <!-- Difficulty -->
@@ -1516,8 +1515,8 @@ function updateStats() {
   EL['stat-hands'].textContent      = stats.hands;
   EL['stat-wins'].textContent       = stats.wins;
   EL['stat-biggest'].textContent    = `$${stats.biggest.toLocaleString()}`;
-  EL['stat-fold-worse'].textContent = stats.foldedToWorse;
-  EL['stat-bluffs'].textContent     = stats.successfulBluffs;
+  if (EL['stat-fold-worse']) EL['stat-fold-worse'].textContent = stats.foldedToWorse;
+  if (EL['stat-bluffs'])     EL['stat-bluffs'].textContent     = stats.successfulBluffs;
   const myStack = players[mySeatIdx] ? players[mySeatIdx].stack : STARTING_STACK;
   const pnl = myStack - stats.startStack;
   const pnlEl = EL['stat-pnl'];
