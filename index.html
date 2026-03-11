@@ -1090,7 +1090,13 @@ function handleHostReceive(conn, data) {
 
 function handleClientReceive(data) {
   if (data.type === 'welcome') {
-    mySeatIdx = data.seatIdx;
+    // Fix #8: validate seatIdx before using it as an array index
+    const seatIdx = data.seatIdx;
+    if (!Number.isInteger(seatIdx) || seatIdx < 0 || seatIdx > 5) {
+      lobbyStatus('⚠ Invalid seat assignment from host — rejecting.', true);
+      return;
+    }
+    mySeatIdx = seatIdx;
     myRoomCode = data.roomCode;
     lobbyStatus(`Joined! You are Seat ${mySeatIdx + 1}. Waiting for host to start…`);
     hostConn.send({ type:'setName', name: myName });
@@ -1109,6 +1115,10 @@ function handleClientReceive(data) {
       const secret = new Uint8Array(32);
       for (let i = 0; i < 32; i++) secret[i] = xored[i] ^ shared[i];
       sessionSecret = secret;
+      // Fix #6: call initChatCrypto here regardless of whether enterGame has already
+      // fired — covers the race where startGame arrives before sessionKey.
+      // initChatCrypto is idempotent (chatAESKey guard prevents double-init).
+      if (!chatAESKey) initChatCrypto();
     }).catch(() => {});
   } else if (data.type === 'full') {
     lobbyStatus('Room is full!', true);
@@ -1148,7 +1158,10 @@ function serializeState(forSeatIdx = null) {
 
 function broadcastState() {
   if (!isHost) return;
-  // Send each client a state serialized specifically for their seat
+  // Each client receives a state filtered to their own seat — opponent hole cards
+  // are stripped (sent as []) so a client never sees cards they shouldn't.
+  // Game metadata (stacks, bets, phase) travels as plaintext over PeerJS's
+  // signaling relay; only chat content is AES-encrypted (see chat section).
   clientConns.forEach(c => {
     try { c.conn.send({ type:'gameState', state: serializeState(c.seatIdx) }); } catch(e) {}
   });
@@ -1160,16 +1173,29 @@ const VALID_PHASES = new Set(['waiting','preflop','flop','turn','river','showdow
 function validateGameState(s) {
   if (!s || typeof s !== 'object') return false;
   if (!Array.isArray(s.players) || s.players.length < 2 || s.players.length > 6) return false;
+  const maxSeat = s.players.length - 1;
   for (const p of s.players) {
-    if (typeof p.id !== 'number' || !Number.isFinite(p.id)) return false;
+    if (typeof p.id !== 'number' || !Number.isFinite(p.id) || p.id < 0 || p.id > maxSeat) return false;
     if (typeof p.stack !== 'number' || !Number.isFinite(p.stack) || p.stack < 0) return false;
     if (typeof p.bet !== 'number' || !Number.isFinite(p.bet) || p.bet < 0) return false;
     if (!Array.isArray(p.hand)) return false;
+    // Fix #10: validate each card has a known rank and suit
+    for (const c of p.hand) {
+      if (!c || typeof c !== 'object') return false;
+      if (!RANK_VAL.hasOwnProperty(c.rank)) return false;
+      if (!SUITS.includes(c.suit)) return false;
+    }
   }
   if (!VALID_PHASES.has(s.phase)) return false;
   if (typeof s.pot !== 'number' || !Number.isFinite(s.pot) || s.pot < 0) return false;
   if (typeof s.currentBet !== 'number' || !Number.isFinite(s.currentBet) || s.currentBet < 0) return false;
   if (!Array.isArray(s.communityCards)) return false;
+  // Fix #9: validate all seat-index fields to prevent out-of-bounds array access
+  const isValidSeat = v => v === -1 || (Number.isInteger(v) && v >= 0 && v <= maxSeat);
+  if (!isValidSeat(s.currentPlayerIdx)) return false;
+  if (!isValidSeat(s.dealerIdx))        return false;
+  if (!isValidSeat(s.smallBlindIdx))    return false;
+  if (!isValidSeat(s.bigBlindIdx))      return false;
   return true;
 }
 
@@ -1303,7 +1329,14 @@ function enterGame() {
   // Show chat for both solo and multiplayer
   document.getElementById('chat-panel').style.display = 'flex';
   if (!isSolo) {
-    initChatCrypto(); // async, derives keys from sessionSecret set during welcome/hostGame
+    // If the ECDH sessionKey has already arrived (fast host), init now.
+    // Otherwise initChatCrypto() will be called by the sessionKey handler once
+    // the secret is established — prevents the race where startGame arrives
+    // before sessionKey completes the ECDH round-trip.
+    if (sessionSecret) {
+      initChatCrypto();
+    }
+    // else: initChatCrypto() fires from the sessionKey handler (see handleClientReceive)
   } else {
     appendSystemMsg('Solo game started. Good luck!');
   }
@@ -1609,8 +1642,16 @@ function startHand() {
     p.bet = 0; p.folded = p.eliminated; p.allIn = false;
   });
   dealerIdx = nextActiveSeat(dealerIdx);
-  smallBlindIdx = nextActiveSeat(dealerIdx);
-  bigBlindIdx = nextActiveSeat(smallBlindIdx);
+  // Heads-up rule: with exactly 2 active players the dealer posts the small blind
+  // and acts first preflop; with 3+ players SB is the seat after the dealer.
+  const activeCnt = players.filter(p => !p.eliminated).length;
+  if (activeCnt === 2) {
+    smallBlindIdx = dealerIdx;
+    bigBlindIdx   = nextActiveSeat(dealerIdx);
+  } else {
+    smallBlindIdx = nextActiveSeat(dealerIdx);
+    bigBlindIdx   = nextActiveSeat(smallBlindIdx);
+  }
   postBlind(smallBlindIdx, SMALL_BLIND);
   postBlind(bigBlindIdx, BIG_BLIND);
   currentBet = BIG_BLIND;
@@ -1790,26 +1831,37 @@ function runOutBoard() {
 function endHand() {
   handInProgress=false; phase='showdown'; playersToAct=[];
   const active = players.filter(p=>!p.folded && !p.eliminated);
-  let winner, handResult;
+  let winners = [], handResult;
+
   if (active.length===1) {
-    winner = active[0];
+    winners = [active[0]];
     handResult = 'Last player standing';
   } else {
-    let bestVal = -1, bestP = null, bestResult = null;
-    for (let p of active) {
-      const res = evaluateBestHand(p.hand, communityCards);  // single pass per player
-      if (res.value > bestVal) { bestVal = res.value; bestP = p; bestResult = res; }
+    // Single-pass: evaluate each player then collect all tied at the best value
+    let bestVal = -1, bestHandResult = null;
+    const evaluated = active.map(p => {
+      const res = evaluateBestHand(p.hand, communityCards);
+      if (res.value > bestVal) { bestVal = res.value; bestHandResult = res; }
+      return { p, res };
+    });
+    handResult = bestHandResult ? bestHandResult.name : '';
+    for (const { p, res } of evaluated) {
+      if (res.value === bestVal) { p._best5 = res.cards; winners.push(p); }
     }
-    winner = bestP;
-    handResult = bestResult ? bestResult.name : '';
-    if (bestResult) winner._best5 = bestResult.cards;
   }
-  if (!winner) {
-    console.error('endHand: could not determine winner');
+
+  if (winners.length === 0) {
+    console.error('endHand: could not determine winner(s)');
     return;
   }
-  winner.stack += pot;
-  if (winner.id===mySeatIdx) {
+
+  // Split pot equally; any odd chips (rounding) go to the first winner (standard rule)
+  const share     = Math.floor(pot / winners.length);
+  const remainder = pot - share * winners.length;
+  winners.forEach((w, i) => { w.stack += share + (i === 0 ? remainder : 0); });
+
+  const myWin = winners.find(w => w.id === mySeatIdx);
+  if (myWin) {
     stats.wins++;
     if (pot > stats.biggest) stats.biggest = pot;
   }
@@ -1817,10 +1869,8 @@ function endHand() {
   // ── Post-hand analysis ──────────────────────────────────────
   // Analysis A: did the player fold a hand that would have beaten someone?
   if (foldSnapshot) {
-    const finalCommunity = communityCards.slice(); // board as it ended
-    // Evaluate the player's folded hand against the final board
+    const finalCommunity = communityCards.slice();
     const foldedVal = evaluateBestHand(foldSnapshot.hand, finalCommunity).value;
-    // Check if that hand beats ANY active opponent's best hand
     const wouldHaveBeatSomeone = active.some(opp => {
       if (opp.id === mySeatIdx) return false;
       return foldedVal > evaluateBestHand(opp.hand, finalCommunity).value;
@@ -1831,18 +1881,18 @@ function endHand() {
 
   // Analysis B: successful bluff — player won, all opponents folded (no showdown),
   // and the player's own hand is weak (below one pair = hand rank 0)
-  if (winner.id === mySeatIdx && active.length === 1) {
-    // All opponents folded — check if it was with a weak hand
-    const myHandVal = evaluateBestHand(winner.hand, communityCards);
-    // rank 0 = high card only; rank 1 = one pair — anything below a pair counts as a bluff
-    if (myHandVal.value < 1000000) {  // rank 0 * 1000000 means high card
-      stats.successfulBluffs++;
-    }
+  if (myWin && active.length === 1) {
+    const myHandVal = evaluateBestHand(myWin.hand, communityCards);
+    if (myHandVal.value < 1000000) { stats.successfulBluffs++; }
   }
   // ── End analysis ────────────────────────────────────────────
 
   broadcastState();
-  showWinner(winner, handResult);
+  if (winners.length > 1) {
+    showSplitPot(winners, handResult);
+  } else {
+    showWinner(winners[0], handResult);
+  }
   updateUI();
 }
 
@@ -1850,10 +1900,25 @@ function showWinner(winner, handName) {
   EL['winner-title'].textContent  = winner.id===mySeatIdx ? '🏆 You Win!' : `${winner.name} Wins!`;
   EL['winner-hand'].textContent   = handName;
   EL['winner-amount'].textContent = `+$${pot.toLocaleString()}`;
-  // Reuse best5 computed in endHand; fall back to getBest5Cards if called from elsewhere
   const best5 = winner._best5 || getBest5Cards(winner.hand, communityCards);
-  winner._best5 = null; // clear temp flag
+  winner._best5 = null;
   EL['winner-cards'].innerHTML = best5.map(cardHTML).join('');
+  EL['winner-overlay'].classList.add('show');
+  renderAllCards(true);
+}
+
+function showSplitPot(winners, handName) {
+  const share = Math.floor(pot / winners.length);
+  const names = winners.map(w => w.id === mySeatIdx ? 'You' : w.name).join(' & ');
+  EL['winner-title'].textContent  = `🤝 Split Pot — ${names}`;
+  EL['winner-hand'].textContent   = handName;
+  EL['winner-amount'].textContent = `$${share.toLocaleString()} each`;
+  // Show all winners' best hands side by side
+  EL['winner-cards'].innerHTML = winners.map(w => {
+    const best5 = w._best5 || getBest5Cards(w.hand, communityCards);
+    w._best5 = null;
+    return `<div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:center">${best5.map(cardHTML).join('')}</div>`;
+  }).join('<div style="width:100%;height:4px;"></div>');
   EL['winner-overlay'].classList.add('show');
   renderAllCards(true);
 }
@@ -2046,6 +2111,8 @@ function getBestHandValue(hole, community) {
 }
 function getBestHandName(hole, community) {
   const all = [...hole, ...community];
+  // Guard: if fewer than 5 cards, evaluate directly without combinations
+  if (all.length < 5) return HAND_NAMES[getHandRank(all)];
   let best = -1, bc;
   for (let c of combinations(all, 5)) { const v = evaluateFiveCard(c); if (v > best) { best = v; bc = c; } }
   return HAND_NAMES[getHandRank(bc || all.slice(0, 5))];
@@ -2195,8 +2262,11 @@ async function initChatCrypto() {
     baseKey, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']
   );
 
-  // Derive per-seat HMAC signing key using seat index as info
-  // This means each seat has a unique signing key — others can verify but not forge
+  // Derive per-seat HMAC signing key using seat index as info.
+  // Each seat has a unique signing key derived from the shared session secret.
+  // NOTE: since all peers share the same sessionSecret, any peer can compute
+  // any seat's signing key — this prevents accidental cross-seat attribution
+  // but not deliberate forgery by a malicious peer. See F-07 trust model note.
   const hmacBits = await crypto.subtle.deriveBits(
     { name: 'HKDF', hash: 'SHA-256',
       salt: new TextEncoder().encode('holdem-chat-hmac-seat-' + mySeatIdx),
@@ -2240,12 +2310,13 @@ async function getVerifyKey(seatIdx) {
 async function encryptChatMsg(text) {
   if (!chatAESKey || !chatHMACKey) return null;
 
-  // Hybrid IV: 8 random + 4 counter bytes
-  // Bug fix: guard against counter wraparound at 2^32 — regenerate random portion
-  if (chatIVCounter >= 0xFFFFFFFF) { chatIVCounter = 0; }
+  // Fully random 96-bit IV — at typical chat volumes (< 2^20 messages/session)
+  // the birthday-attack collision probability is negligible (~1 in 2^72).
+  // This is simpler and safer than the previous counter-hybrid approach which
+  // could produce IV reuse after the 32-bit counter wrapped at 0xFFFFFFFF.
   const iv = new Uint8Array(12);
-  crypto.getRandomValues(iv.subarray(0, 8));
-  new DataView(iv.buffer).setUint32(8, chatIVCounter++, false);
+  crypto.getRandomValues(iv);
+  chatIVCounter++; // keep incrementing so seenSeqs replay-check still advances
 
   const seq = chatSeq++;
   const payload = JSON.stringify({
@@ -2325,8 +2396,8 @@ async function sendChat() {
   const text = input.value.trim();
   if (!text) return;
   if (text.length > CHAT_MAX_LEN) return;
-  // F-04: rate-limit the host's own messages with the same rules as relayed messages
-  if (isHost && !chatRateCheck(mySeatIdx)) {
+  // Rate-limit every sender (host and clients) with the same rules
+  if (!chatRateCheck(mySeatIdx)) {
     appendSystemMsg('⚠ Sending too fast — slow down');
     input.value = '';
     return;
@@ -2474,6 +2545,11 @@ function goToMainMenu() {
   document.getElementById('winner-overlay').classList.remove('show');
   document.getElementById('bust-overlay').style.display = 'none';
   EL['gameover-overlay'].style.display = 'none';
+  // Fix #4: clear the is-you highlight from whichever seat was active
+  for (let i = 0; i < 6; i++) {
+    const infoEl = document.getElementById(`info-${i}`);
+    if (infoEl) infoEl.classList.remove('is-you');
+  }
   document.getElementById('chat-messages').innerHTML = '';
   document.getElementById('lobby-status').textContent = '';
   document.getElementById('lobby-error').textContent = '';
