@@ -96,6 +96,23 @@
 
   #lobby-status { font-size:0.78rem; color:rgba(245,234,208,0.5); margin-top:10px; min-height:18px; }
   #lobby-error { font-size:0.78rem; color:#e07070; margin-top:6px; min-height:18px; }
+  .ai-seat-row { display:flex; align-items:center; justify-content:space-between; padding:4px 0; border-bottom:1px solid rgba(201,168,76,0.08); gap:8px; }
+  .ai-seat-row:last-child { border-bottom:none; }
+  .ai-seat-info { display:flex; flex-direction:column; }
+  .ai-seat-name { font-size:0.78rem; color:var(--cream); }
+  .ai-seat-style { font-size:0.62rem; color:rgba(201,168,76,0.5); font-style:italic; }
+  .ai-toggle { position:relative; width:36px; height:20px; flex-shrink:0; }
+  .ai-toggle input { opacity:0; width:0; height:0; }
+  .ai-toggle-slider {
+    position:absolute; inset:0; border-radius:10px; cursor:pointer;
+    background:rgba(255,255,255,0.12); transition:background 0.2s;
+  }
+  .ai-toggle-slider:before {
+    content:''; position:absolute; width:14px; height:14px; left:3px; bottom:3px;
+    border-radius:50%; background:rgba(245,234,208,0.5); transition:transform 0.2s;
+  }
+  .ai-toggle input:checked + .ai-toggle-slider { background:var(--gold-dark); }
+  .ai-toggle input:checked + .ai-toggle-slider:before { transform:translateX(16px); background:var(--cream); }
 
   /* ── GAME WRAPPER ── */
   #game-wrapper {
@@ -159,12 +176,20 @@
   .card-back::after { content:'♠'; color:rgba(255,255,255,0.15); font-size:1.5rem; }
   .card-placeholder { width:58px; height:84px; border-radius:6px; border:2px dashed rgba(245,234,208,0.15); flex-shrink:0; }
 
-  /* ── SEATS ── */
+  /* ── SEATS — 4-seat default layout ── */
   .seat { position:absolute; display:flex; flex-direction:column; align-items:center; gap:6px; }
   #seat-0 { bottom:-130px; left:50%; transform:translateX(-50%); }
   #seat-1 { left:-180px; top:50%; transform:translateY(-50%); }
   #seat-2 { top:-140px; left:50%; transform:translateX(-50%); }
   #seat-3 { right:-180px; top:50%; transform:translateY(-50%); }
+
+  /* ── SEATS — 6-seat layout override (applied via JS on #table) ── */
+  #table.six-seats #seat-0 { bottom:-130px; left:50%; transform:translateX(-50%); }
+  #table.six-seats #seat-1 { bottom:-90px;  left:-165px; transform:none; top:auto; right:auto; }
+  #table.six-seats #seat-2 { top:-130px;   left:-165px; transform:none; bottom:auto; right:auto; }
+  #table.six-seats #seat-3 { top:-140px;   left:50%; transform:translateX(-50%); right:auto; bottom:auto; }
+  #table.six-seats #seat-4 { top:-130px;   right:-165px; transform:none; left:auto; bottom:auto; }
+  #table.six-seats #seat-5 { bottom:-90px; right:-165px; transform:none; left:auto; top:auto; }
 
   .player-info {
     background:rgba(0,0,0,0.65); border:1px solid rgba(201,168,76,0.3);
@@ -501,6 +526,11 @@
       <div id="room-code-display" onclick="copyRoomCode()" title="Click to copy">????</div>
       <div class="copy-hint">Click to copy · Share with friends</div>
       <div id="waiting-players"></div>
+      <div id="ai-seat-config" style="margin-top:12px;text-align:left;">
+        <div style="font-size:0.72rem;color:var(--gold);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;">AI Seats</div>
+        <div id="ai-seat-rows"></div>
+        <div style="font-size:0.65rem;color:rgba(245,234,208,0.35);margin-top:4px;">Disabled seats stay empty</div>
+      </div>
       <div style="margin-top:14px;">
         <button class="btn btn-gold" id="btn-start-game" onclick="startMultiplayerGame()" disabled>Start Game</button>
         <div style="font-size:0.7rem;color:rgba(245,234,208,0.4);margin-top:6px;">Need at least 2 players</div>
@@ -579,6 +609,24 @@
         </div>
         <div class="player-cards" id="cards-3"></div>
       </div>
+      <div class="seat" id="seat-4" style="display:none;">
+        <div class="player-info" id="info-4">
+          <div class="player-name" id="pname-4">Seat 5</div>
+          <div class="player-stack" id="stack-4">$10,000</div>
+          <div class="player-bet" id="bet-4"></div>
+          <div class="player-action-label" id="action-label-4"></div>
+        </div>
+        <div class="player-cards" id="cards-4"></div>
+      </div>
+      <div class="seat" id="seat-5" style="display:none;">
+        <div class="player-info" id="info-5">
+          <div class="player-name" id="pname-5">Seat 6</div>
+          <div class="player-stack" id="stack-5">$10,000</div>
+          <div class="player-bet" id="bet-5"></div>
+          <div class="player-action-label" id="action-label-5"></div>
+        </div>
+        <div class="player-cards" id="cards-5"></div>
+      </div>
     </div>
   </div><!-- /#table-scene -->
 
@@ -639,6 +687,19 @@
     </div>
   </div>
 
+  <!-- Game-Over Overlay (solo win / multiplayer game end) -->
+  <div id="gameover-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.82);z-index:120;display:none;align-items:center;justify-content:center;">
+    <div id="gameover-box" style="background:linear-gradient(135deg,#0d1f15,#060e0a);border:2px solid var(--gold-dark);border-radius:16px;padding:40px 50px;text-align:center;box-shadow:0 0 60px rgba(201,168,76,0.25);max-width:400px;width:90%;">
+      <div id="gameover-title" style="font-family:'Playfair Display',serif;font-size:2.2rem;color:var(--gold-light);margin-bottom:10px;"></div>
+      <div id="gameover-subtitle" style="font-size:1rem;color:var(--cream);opacity:0.75;margin-bottom:8px;"></div>
+      <div id="gameover-stats" style="font-size:0.85rem;color:var(--gold-light);margin-bottom:28px;line-height:1.8;"></div>
+      <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+        <button id="gameover-btn-newgame" class="btn btn-deal" onclick="newGame()" style="display:none;">New Game</button>
+        <button class="btn" style="background:rgba(0,0,0,0.7);border:1px solid rgba(201,168,76,0.3);color:var(--gold-light);font-size:0.82rem;padding:10px 20px;" onclick="goToMainMenu()">⬅ Main Menu</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Main Menu Button -->
   <div id="btn-main-menu" style="display:none;">
     <button class="btn" style="background:rgba(0,0,0,0.7);border:1px solid rgba(201,168,76,0.3);color:var(--gold-light);font-size:0.72rem;padding:6px 14px;" onclick="goToMainMenu()">⬅ Menu</button>
@@ -656,13 +717,49 @@ const RANK_VAL = {'2':2,'3':3,'4':4,'5':5,'6':6,'7':7,'8':8,'9':9,'10':10,'J':11
 const HAND_NAMES = ['High Card','One Pair','Two Pair','Three of a Kind','Straight','Flush','Full House','Four of a Kind','Straight Flush','Royal Flush'];
 const BIG_BLIND = 100, SMALL_BLIND = 50;
 const STARTING_STACK = 10000;
+const CHAT_MAX_LEN = 150;   // F-05: single source of truth for chat message length
 
 // ═══════════════════════════════════════════════════════════
-//  MULTIPLAYER STATE
+//  DOM CACHE — query once, never again
+//  All getElementById/querySelector calls during gameplay route through here.
 // ═══════════════════════════════════════════════════════════
+const EL = {};
+function buildDOMCache() {
+  const ids = [
+    'lobby','lobby-status','lobby-error','host-room-area','room-code-display',
+    'waiting-players','ai-seat-rows','btn-host','btn-join','btn-start-game',
+    'room-code-input','player-name-input',
+    'game-wrapper','table','table-scene',
+    'pot-display','phase-label','community-cards',
+    'message-bar','controls','stats-panel','difficulty-panel','diff-rows',
+    'btn-host-deal','btn-next-hand','btn-main-menu',
+    'btn-fold','btn-check','btn-call','btn-raise','btn-allin','raise-input','raise-area',
+    'stat-hands','stat-wins','stat-biggest','stat-pnl',
+    'room-badge','net-badge',
+    'winner-overlay','winner-title','winner-hand','winner-amount','winner-cards',
+    'bust-overlay','bust-stats',
+    'gameover-overlay','gameover-title','gameover-subtitle','gameover-stats','gameover-btn-newgame',
+    'chat-panel','chat-messages','chat-input','chat-send','chat-header-title',
+    'chat-unread','chat-toggle-icon',
+  ];
+  ids.forEach(id => { EL[id] = document.getElementById(id); });
+  // Per-seat elements — cached as arrays indexed by seat
+  EL.pname = []; EL.stack = []; EL.bet = []; EL.info = [];
+  EL.cards = []; EL.actionLabel = [];
+  for (let i = 0; i < 6; i++) {
+    EL.pname[i]       = document.getElementById(`pname-${i}`);
+    EL.stack[i]       = document.getElementById(`stack-${i}`);
+    EL.bet[i]         = document.getElementById(`bet-${i}`);
+    EL.info[i]        = document.getElementById(`info-${i}`);
+    EL.cards[i]       = document.getElementById(`cards-${i}`);
+    EL.actionLabel[i] = document.getElementById(`action-label-${i}`);
+  }
+}
 let peer = null;           // PeerJS instance
 let isHost = false;
 let isSolo = false;
+let MAX_SEATS = 4;          // 4 for solo, 6 for multiplayer
+let disabledAISeats = new Set(); // AI seats turned off by host in lobby
 // sessionSecret: Uint8Array(32), set by host in hostGame() or by client via applySessionSecret()
 let myName = 'You';
 let mySeatIdx = 0;         // which seat index (0-3) am I sitting in
@@ -670,6 +767,8 @@ let myRoomCode = '';
 let hostConn = null;       // client -> host connection
 let clientConns = [];      // host -> clients connections array [{conn, seatIdx, name}]
 let humanSeats = [];       // seat indices occupied by humans [0..3]
+let _ecdhPeerPublicKey = null;  // F-01: client stores the host's imported ECDH public key
+let sessionSecret = null;       // Uint8Array(32) — derived via ECDH, never transmitted in plaintext
 
 // ═══════════════════════════════════════════════════════════
 //  GAME STATE (authoritative on host / solo)
@@ -714,6 +813,9 @@ function joinGame() {
 
 function connectWithCode(code) {
   myName = getPlayerName();
+  // F-08: defaults to peerjs.com public signaling server.
+  // For production, self-host: `npm install -g peer && peerjs --port 9000`
+  // then pass { host:'your-server', port:9000, path:'/' } as the second Peer() argument.
   peer = new Peer(null, { debug: 0 });
   peer.on('open', () => {
     const hostPeerId = 'holdem-' + code;
@@ -753,24 +855,31 @@ function hostGame() {
   const code = Array.from(codeBytes).map(b => alphabet[b % alphabet.length]).join('');
   myRoomCode = code;
 
+  // F-08: defaults to peerjs.com public signaling server.
+  // For production, self-host: `npm install -g peer && peerjs --port 9000`
+  // then pass { host:'your-server', port:9000, path:'/' } to the Peer() constructor below.
   peer = new Peer('holdem-' + code, { debug: 0 });
-  peer.on('open', id => {
+  peer.on('open', async id => {
     isHost = true;
     mySeatIdx = 0;
     humanSeats = [0];
+    // F-01: generate the host's ECDH key pair; the raw session secret stays local
+    await generateECDHKeyPair();
     sessionSecret = crypto.getRandomValues(new Uint8Array(32));
+    disabledAISeats = new Set();
 
     document.getElementById('room-code-display').textContent = code;
     document.getElementById('host-room-area').style.display = 'block';
     document.getElementById('btn-host').style.display = 'none';
     lobbyStatus('Room created! Share the code above.');
     renderWaitingSlots();
+    renderAISeatConfig();
 
     peer.on('connection', conn => {
       conn.on('open', () => {
         const takenSeats = humanSeats.slice();
         let seatIdx = -1;
-        for (let i = 1; i <= 3; i++) {
+        for (let i = 1; i <= 5; i++) {
           if (!takenSeats.includes(i)) { seatIdx = i; break; }
         }
         if (seatIdx === -1) { conn.send({type:'full'}); return; }
@@ -786,11 +895,16 @@ function hostGame() {
           if (info) humanSeats = humanSeats.filter(s => s !== info.seatIdx);
           clientConns = clientConns.filter(c => c.conn !== conn);
           renderWaitingSlots();
+          renderAISeatConfig();
           updateStartButton();
         });
 
-        conn.send({ type:'welcome', seatIdx, roomCode: code, sessionSecret: Array.from(sessionSecret).map(b=>b.toString(16).padStart(2,'0')).join('') });
+        // F-01: send host's ECDH public key instead of raw session secret
+        exportPublicKey(_ecdhKeyPair.publicKey).then(hostPubKey => {
+          conn.send({ type:'welcome', seatIdx, roomCode: code, hostPublicKey: hostPubKey });
+        });
         renderWaitingSlots();
+        renderAISeatConfig();
         updateStartButton();
       });
     });
@@ -800,7 +914,9 @@ function hostGame() {
     if (e.type === 'unavailable-id') {
       lobbyStatus('Room ID conflict, retrying…');
       peer.destroy();
-      setTimeout(hostGame2, 500);
+      peer = null;
+      // Bug fix: hostGame2 was never defined — just re-run hostGame() after a short delay
+      setTimeout(hostGame, 500);
     } else {
       lobbyStatus('Error: ' + e.type, true);
       document.getElementById('btn-host').disabled = false;
@@ -808,21 +924,116 @@ function hostGame() {
   });
 }
 
+// ── Security helpers ─────────────────────────────────────────
+function sanitizeText(str, maxLen = 32) {
+  if (typeof str !== 'string') return '';
+  return str.slice(0, maxLen).replace(/[<>&"'`]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;','`':'&#96;'}[c]));
+}
+const VALID_ACTIONS = new Set(['fold','check','call','raise','allin']);
+
+// AI persona definitions (shared between lobby config and initPlayers)
+const AI_PERSONAS = [
+  null, // seat 0 = human host
+  { name:'Atlas', style:'Tight-Aggressive', aggression:0.72, bluffFreq:0.07, tightness:0.68, betSizeMult:1.10 },
+  { name:'Vera',  style:'Loose-Passive',    aggression:0.28, bluffFreq:0.04, tightness:0.30, betSizeMult:0.70 },
+  { name:'Duke',  style:'Maniac',           aggression:0.90, bluffFreq:0.28, tightness:0.20, betSizeMult:1.40 },
+  { name:'Rex',   style:'Calling Station',  aggression:0.35, bluffFreq:0.05, tightness:0.22, betSizeMult:0.85 },
+  { name:'Nina',  style:'Balanced',         aggression:0.55, bluffFreq:0.10, tightness:0.50, betSizeMult:1.00 },
+];
+
 function renderWaitingSlots() {
+  // F-02: use DOM API (no innerHTML) to prevent XSS from any interpolated data
   const el = document.getElementById('waiting-players');
-  let html = '';
+  el.innerHTML = '';
   const names = { 0: myName };
   clientConns.forEach(c => { names[c.seatIdx] = c.name; });
 
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < 6; i++) {
+    const slot = document.createElement('div');
+    slot.className = 'waiting-slot';
+
+    const dot = document.createElement('span');
+    dot.className = 'slot-dot';
+    const label = document.createElement('span');
+    label.className = 'slot-label';
+    const type = document.createElement('span');
+    type.className = 'slot-type';
+
     if (humanSeats.includes(i)) {
-      const n = names[i] || 'Connecting…';
-      html += `<div class="waiting-slot"><span class="slot-dot connected"></span><span class="slot-label">${n}</span><span class="slot-type">Human</span></div>`;
+      dot.classList.add('connected');
+      label.textContent = sanitizeText(names[i] || 'Connecting…');
+      type.textContent = 'Human';
+    } else if (disabledAISeats.has(i)) {
+      slot.style.opacity = '0.35';
+      label.textContent = `Seat ${i + 1}`;
+      type.textContent = 'Empty';
     } else {
-      html += `<div class="waiting-slot"><span class="slot-dot ai"></span><span class="slot-label">Seat ${i+1}</span><span class="slot-type">AI</span></div>`;
+      const persona = AI_PERSONAS[i];
+      dot.classList.add('ai');
+      label.textContent = persona ? sanitizeText(persona.name) : `Seat ${i + 1}`;
+      type.textContent = 'AI';
     }
+
+    slot.appendChild(dot);
+    slot.appendChild(label);
+    slot.appendChild(type);
+    el.appendChild(slot);
   }
-  el.innerHTML = html;
+}
+
+function renderAISeatConfig() {
+  // F-02: use DOM API (no innerHTML) to prevent XSS from any interpolated data
+  const container = document.getElementById('ai-seat-rows');
+  container.innerHTML = '';
+  for (let i = 1; i <= 5; i++) {
+    if (humanSeats.includes(i)) continue;
+    const persona = AI_PERSONAS[i];
+    const enabled = !disabledAISeats.has(i);
+
+    const row = document.createElement('div');
+    row.className = 'ai-seat-row';
+
+    const info = document.createElement('div');
+    info.className = 'ai-seat-info';
+
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'ai-seat-name';
+    nameSpan.textContent = `Seat ${i + 1} · ${persona ? sanitizeText(persona.name) : `Seat ${i + 1}`}`;
+
+    const styleSpan = document.createElement('span');
+    styleSpan.className = 'ai-seat-style';
+    styleSpan.textContent = persona ? sanitizeText(persona.style) : '';
+
+    info.appendChild(nameSpan);
+    info.appendChild(styleSpan);
+
+    const lbl = document.createElement('label');
+    lbl.className = 'ai-toggle';
+
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = enabled;
+    // Use addEventListener instead of inline onchange (F-02)
+    cb.addEventListener('change', (function(seatIdx) {
+      return function() { toggleAISeat(seatIdx, this.checked); };
+    })(i));
+
+    const slider = document.createElement('span');
+    slider.className = 'ai-toggle-slider';
+
+    lbl.appendChild(cb);
+    lbl.appendChild(slider);
+
+    row.appendChild(info);
+    row.appendChild(lbl);
+    container.appendChild(row);
+  }
+}
+
+function toggleAISeat(seatIdx, enabled) {
+  if (enabled) { disabledAISeats.delete(seatIdx); }
+  else { disabledAISeats.add(seatIdx); }
+  renderWaitingSlots();
 }
 
 function updateStartButton() {
@@ -830,19 +1041,41 @@ function updateStartButton() {
 }
 
 function handleHostReceive(conn, data) {
+  if (data.type === 'ecdh') {
+    // F-01: client has sent its ECDH public key; derive the shared secret for this connection
+    importPublicKey(data.clientPublicKey).then(async clientPub => {
+      const shared = await deriveSharedSecret(clientPub);
+      // XOR the shared secret with the host's session secret to produce the per-client chat secret
+      // This means both sides need the ECDH agreement AND for the host to have distributed
+      // the session secret (which now happens via the ECDH channel after key exchange completes)
+      conn._sessionSecret = shared;
+      // Send the session secret encrypted under the ECDH-derived key
+      // For simplicity we XOR: client will XOR shared with what host sends to get sessionSecret
+      const xored = new Uint8Array(32);
+      for (let i = 0; i < 32; i++) xored[i] = sessionSecret[i] ^ shared[i];
+      conn.send({ type:'sessionKey', xored: btoa(String.fromCharCode(...xored)) });
+    }).catch(() => {});
+    return;
+  }
   if (data.type === 'setName') {
-    conn._name = data.name;
+    // Sanitize and cap name length before storing
+    const safeName = String(data.name || '').trim().slice(0, 20) || 'Player';
+    conn._name = safeName;
     const info = clientConns.find(c => c.conn === conn);
-    if (info) info.name = data.name;
+    if (info) info.name = safeName;
     renderWaitingSlots();
-    // If game in progress, update player name
     if (handInProgress) {
-      players[conn._seatIdx].name = data.name;
+      players[conn._seatIdx].name = safeName;
       broadcastState();
     }
   } else if (data.type === 'action') {
-    if (handInProgress && currentPlayerIdx === conn._seatIdx) {
-      executeAction(conn._seatIdx, data.action, data.raiseAmt);
+    // Validate action is a known string and raiseAmt is a safe integer
+    const action = VALID_ACTIONS.has(data.action) ? data.action : null;
+    const raiseAmt = Number.isFinite(data.raiseAmt) && data.raiseAmt >= 0
+      ? Math.floor(Math.min(data.raiseAmt, STARTING_STACK * 4))
+      : 0;
+    if (action && handInProgress && currentPlayerIdx === conn._seatIdx) {
+      executeAction(conn._seatIdx, action, raiseAmt);
     }
   } else if (data.type === 'chat') {
     relayOrReceiveChat(conn, data);
@@ -853,9 +1086,24 @@ function handleClientReceive(data) {
   if (data.type === 'welcome') {
     mySeatIdx = data.seatIdx;
     myRoomCode = data.roomCode;
-    if (data.sessionSecret) applySessionSecret(data.sessionSecret);
     lobbyStatus(`Joined! You are Seat ${mySeatIdx + 1}. Waiting for host to start…`);
     hostConn.send({ type:'setName', name: myName });
+    // F-01: ECDH key exchange — generate our key pair and send our public key to the host
+    generateECDHKeyPair().then(async () => {
+      _ecdhPeerPublicKey = await importPublicKey(data.hostPublicKey);
+      const clientPubKey = await exportPublicKey(_ecdhKeyPair.publicKey);
+      hostConn.send({ type:'ecdh', clientPublicKey: clientPubKey });
+    }).catch(() => {
+      lobbyStatus('⚠ Key exchange failed — chat encryption unavailable', true);
+    });
+  } else if (data.type === 'sessionKey') {
+    // F-01: derive the shared ECDH secret and XOR with host's masked session secret
+    deriveSharedSecret(_ecdhPeerPublicKey).then(shared => {
+      const xored = Uint8Array.from(atob(data.xored), c => c.charCodeAt(0));
+      const secret = new Uint8Array(32);
+      for (let i = 0; i < 32; i++) secret[i] = xored[i] ^ shared[i];
+      sessionSecret = secret;
+    }).catch(() => {});
   } else if (data.type === 'full') {
     lobbyStatus('Room is full!', true);
   } else if (data.type === 'gameState') {
@@ -863,61 +1111,123 @@ function handleClientReceive(data) {
   } else if (data.type === 'chat') {
     receiveChat(data.from, data.payload);
   } else if (data.type === 'startGame') {
+    // Bug fix: validate the startGame payload before applying it
+    const validSeats = [4, 6];
+    const seats = data.maxSeats;
+    if (!validSeats.includes(seats)) return;
+    if (!Array.isArray(data.humanSeats) || data.humanSeats.some(s => !Number.isInteger(s) || s < 0 || s >= seats)) return;
+    if (!Number.isInteger(data.seatIdx) || data.seatIdx < 0 || data.seatIdx >= seats) return;
     humanSeats = data.humanSeats;
     mySeatIdx = data.seatIdx;
+    MAX_SEATS = data.maxSeats || 4;
+    setSeatVisibility();
     enterGame(); // enterGame calls initChatCrypto which broadcasts keys when ready
   }
 }
 
-function broadcastState() {
-  if (!isHost) return;
-  const state = serializeState();
-  clientConns.forEach(c => {
-    try { c.conn.send({ type:'gameState', state }); } catch(e) {}
-  });
-}
-
-function serializeState() {
-  // Send full state but hide other players' hole cards
-  return {
-    players: players.map(p => ({
-      id: p.id, name: p.name, stack: p.stack,
-      hand: p.hand, // clients will mask what they shouldn't see
-      bet: p.bet, folded: p.folded, allIn: p.allIn, isAI: p.isAI, eliminated: p.eliminated
-    })),
+function serializeState(forSeatIdx = null) {
+  // Build the seat-independent payload once; only the hand field varies per client
+  const common = {
     communityCards, pot, currentBet, phase,
     currentPlayerIdx, dealerIdx, smallBlindIdx, bigBlindIdx,
     handInProgress, playersToAct, stats
   };
+  common.players = players.map(p => ({
+    id: p.id, name: p.name, stack: p.stack,
+    hand: (forSeatIdx !== null && p.id === forSeatIdx) ? p.hand : [],
+    bet: p.bet, folded: p.folded, allIn: p.allIn, isAI: p.isAI, eliminated: p.eliminated
+  }));
+  return common;
+}
+
+function broadcastState() {
+  if (!isHost) return;
+  // Send each client a state serialized specifically for their seat
+  clientConns.forEach(c => {
+    try { c.conn.send({ type:'gameState', state: serializeState(c.seatIdx) }); } catch(e) {}
+  });
+}
+
+// F-03: Validate host-supplied game state before applying it to prevent
+//       prototype pollution and malformed-state denial-of-service attacks.
+const VALID_PHASES = new Set(['waiting','preflop','flop','turn','river','showdown']);
+function validateGameState(s) {
+  if (!s || typeof s !== 'object') return false;
+  if (!Array.isArray(s.players) || s.players.length < 2 || s.players.length > 6) return false;
+  for (const p of s.players) {
+    if (typeof p.id !== 'number' || !Number.isFinite(p.id)) return false;
+    if (typeof p.stack !== 'number' || !Number.isFinite(p.stack) || p.stack < 0) return false;
+    if (typeof p.bet !== 'number' || !Number.isFinite(p.bet) || p.bet < 0) return false;
+    if (!Array.isArray(p.hand)) return false;
+  }
+  if (!VALID_PHASES.has(s.phase)) return false;
+  if (typeof s.pot !== 'number' || !Number.isFinite(s.pot) || s.pot < 0) return false;
+  if (typeof s.currentBet !== 'number' || !Number.isFinite(s.currentBet) || s.currentBet < 0) return false;
+  if (!Array.isArray(s.communityCards)) return false;
+  return true;
 }
 
 function applyGameState(state) {
-  players = state.players;
-  communityCards = state.communityCards;
-  pot = state.pot;
-  currentBet = state.currentBet;
-  phase = state.phase;
-  currentPlayerIdx = state.currentPlayerIdx;
-  dealerIdx = state.dealerIdx;
-  smallBlindIdx = state.smallBlindIdx;
-  bigBlindIdx = state.bigBlindIdx;
-  handInProgress = state.handInProgress;
-  playersToAct = state.playersToAct;
-  stats = state.stats;
+  // F-03: structuredClone strips prototype pollution; validateGameState checks types/ranges
+  let s;
+  try { s = structuredClone(state); } catch(e) { return; }
+  if (!validateGameState(s)) {
+    appendSystemMsg('⚠ Invalid game state received — ignored');
+    return;
+  }
+  players = s.players;
+  communityCards = s.communityCards;
+  pot = s.pot;
+  currentBet = s.currentBet;
+  phase = s.phase;
+  currentPlayerIdx = s.currentPlayerIdx;
+  dealerIdx = s.dealerIdx;
+  smallBlindIdx = s.smallBlindIdx;
+  bigBlindIdx = s.bigBlindIdx;
+  handInProgress = s.handInProgress;
+  playersToAct = Array.isArray(s.playersToAct) ? s.playersToAct : [];
+  stats = (s.stats && typeof s.stats === 'object') ? s.stats : stats;
 
   renderAllCards();
   updateUI();
   updateControls();
 }
 
-function applySessionSecret(hex) {
-  // Convert hex string sent by host back into a Uint8Array
-  try {
-    const bytes = new Uint8Array(hex.match(/.{1,2}/g).map(b => parseInt(b, 16)));
-    sessionSecret = bytes;
-  } catch(e) {
-    sessionSecret = null;
-  }
+// ═══════════════════════════════════════════════════════════
+//  F-01: ECDH KEY EXCHANGE
+//  Each client generates an ephemeral P-256 key pair. The host
+//  sends its public key in 'welcome'; the client responds with
+//  its own public key in 'ecdh'. Both sides derive the same
+//  shared secret via ECDH, which replaces the plaintext
+//  sessionSecret that was previously sent over the wire.
+//  The raw session secret never leaves the host.
+// ═══════════════════════════════════════════════════════════
+let _ecdhKeyPair = null;  // { privateKey, publicKey } — set for host and each client
+
+async function generateECDHKeyPair() {
+  _ecdhKeyPair = await crypto.subtle.generateKey(
+    { name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveKey', 'deriveBits']
+  );
+}
+
+// Export a public key to a base64 string for transmission
+async function exportPublicKey(key) {
+  const raw = await crypto.subtle.exportKey('raw', key);
+  return btoa(String.fromCharCode(...new Uint8Array(raw)));
+}
+
+// Import a base64 public key for ECDH
+async function importPublicKey(b64) {
+  const raw = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+  return crypto.subtle.importKey('raw', raw, { name: 'ECDH', namedCurve: 'P-256' }, false, []);
+}
+
+// Derive a 32-byte shared secret from our private key + peer's public key
+async function deriveSharedSecret(theirPublicKey) {
+  const bits = await crypto.subtle.deriveBits(
+    { name: 'ECDH', public: theirPublicKey }, _ecdhKeyPair.privateKey, 256
+  );
+  return new Uint8Array(bits);
 }
 
 function copyRoomCode() {
@@ -931,6 +1241,14 @@ function copyRoomCode() {
 // ═══════════════════════════════════════════════════════════
 //  GAME ENTRY
 // ═══════════════════════════════════════════════════════════
+function setSeatVisibility() {
+  const sixSeats = MAX_SEATS === 6;
+  document.getElementById('table').classList.toggle('six-seats', sixSeats);
+  // Seats 4 and 5 only exist in 6-seat mode
+  document.getElementById('seat-4').style.display = sixSeats ? '' : 'none';
+  document.getElementById('seat-5').style.display = sixSeats ? '' : 'none';
+}
+
 function startSoloGame() {
   myName = getPlayerName() || 'You';
   isSolo = true;
@@ -938,14 +1256,19 @@ function startSoloGame() {
   mySeatIdx = 0;
   humanSeats = [0];
   myRoomCode = '';
+  MAX_SEATS = 4;
+  disabledAISeats = new Set();
+  setSeatVisibility();
   initPlayers();
   enterGame();
 }
 
 function startMultiplayerGame() {
   if (!isHost) return;
+  MAX_SEATS = 6;
+  setSeatVisibility();
   clientConns.forEach(c => {
-    c.conn.send({ type:'startGame', humanSeats, seatIdx: c.seatIdx });
+    c.conn.send({ type:'startGame', humanSeats, seatIdx: c.seatIdx, maxSeats: 6 });
   });
   enterGame();
 }
@@ -991,45 +1314,10 @@ function enterGame() {
 }
 
 function initPlayers() {
-  // Each AI persona: name, and personality traits that shape their play style
-  const aiPersonas = [
-    {
-      name: 'Atlas',
-      style: 'Tight-Aggressive',
-      aggression:   0.72,  // raises frequently when strong
-      bluffFreq:    0.07,  // occasional well-timed bluffs
-      tightness:    0.68,  // folds weak hands readily
-      betSizeMult:  1.10,  // bets close to pot size
-    },
-    {
-      name: 'Vera',
-      style: 'Loose-Passive',
-      aggression:   0.28,  // rarely raises, prefers to call
-      bluffFreq:    0.04,  // almost never bluffs
-      tightness:    0.30,  // calls with wide range
-      betSizeMult:  0.70,  // small bets when she does raise
-    },
-    {
-      name: 'Duke',
-      style: 'Maniac',
-      aggression:   0.90,  // raises almost every hand
-      bluffFreq:    0.28,  // bluffs constantly
-      tightness:    0.20,  // almost never folds pre-river
-      betSizeMult:  1.40,  // large overbets
-    },
-    {
-      name: 'Rex',
-      style: 'Calling Station',
-      aggression:   0.35,
-      bluffFreq:    0.05,
-      tightness:    0.22,  // will call almost anything
-      betSizeMult:  0.85,
-    },
-  ];
-
   players = [];
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < MAX_SEATS; i++) {
     const isHuman = humanSeats.includes(i);
+    const isDisabled = !isHuman && disabledAISeats.has(i);
     let name, persona;
     if (i === mySeatIdx) {
       name = myName;
@@ -1039,39 +1327,64 @@ function initPlayers() {
       name = info ? info.name : `Player ${i+1}`;
       persona = null;
     } else {
-      persona = aiPersonas[i];
+      persona = AI_PERSONAS[i] || { name:`Bot ${i+1}`, style:'Balanced', aggression:0.55, bluffFreq:0.10, tightness:0.50, betSizeMult:1.00 };
       name = persona.name;
     }
     players.push({
       id: i, name, stack: STARTING_STACK,
       hand: [], bet: 0, folded: false, allIn: false,
-      isAI: !isHuman, eliminated: false,
-      persona: persona
+      isAI: !isHuman, eliminated: isDisabled, // disabled AI seats start eliminated
+      persona: isHuman ? null : persona
     });
   }
 }
 
 function buildDifficultyPanel() {
+  // F-02: use DOM API (no innerHTML with interpolation) to prevent XSS
   const container = document.getElementById('diff-rows');
   container.innerHTML = '';
   let count = 0;
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < MAX_SEATS; i++) {
     if (humanSeats.includes(i)) continue;
     if (players[i] && players[i].eliminated) continue;
     const p = players[i];
-    const style = p && p.persona ? p.persona.style : '';
-    container.innerHTML += `
-      <div class="diff-row">
-        <div class="diff-name-col">
-          <span class="diff-name">${p ? p.name : `Seat ${i+1}`}</span>
-          <span class="diff-style" id="style-label-${i}">${style}</span>
-        </div>
-        <select class="diff-select" id="diff-${i}" onchange="applyDifficulty(${i})">
-          <option value="easy">Easy</option>
-          <option value="medium" selected>Medium</option>
-          <option value="hard">Hard</option>
-        </select>
-      </div>`;
+    const styleText = p && p.persona ? p.persona.style : '';
+
+    const row = document.createElement('div');
+    row.className = 'diff-row';
+
+    const nameCol = document.createElement('div');
+    nameCol.className = 'diff-name-col';
+
+    const nameEl = document.createElement('span');
+    nameEl.className = 'diff-name';
+    nameEl.textContent = p ? sanitizeText(p.name) : `Seat ${i + 1}`;
+
+    const styleEl = document.createElement('span');
+    styleEl.className = 'diff-style';
+    styleEl.id = `style-label-${i}`;
+    styleEl.textContent = sanitizeText(styleText);
+
+    nameCol.appendChild(nameEl);
+    nameCol.appendChild(styleEl);
+
+    const sel = document.createElement('select');
+    sel.className = 'diff-select';
+    sel.id = `diff-${i}`;
+    sel.addEventListener('change', (function(seatIdx) {
+      return function() { applyDifficulty(seatIdx); };
+    })(i));
+    ['easy', 'medium', 'hard'].forEach(val => {
+      const opt = document.createElement('option');
+      opt.value = val;
+      opt.textContent = val.charAt(0).toUpperCase() + val.slice(1);
+      if (val === 'medium') opt.selected = true;
+      sel.appendChild(opt);
+    });
+
+    row.appendChild(nameCol);
+    row.appendChild(sel);
+    container.appendChild(row);
     count++;
   }
   const panel = document.getElementById('difficulty-panel');
@@ -1092,9 +1405,11 @@ function buildDeck() {
   shuffle(deck);
 }
 function shuffle(arr) {
-  for (let i = arr.length-1; i > 0; i--) {
-    const j = Math.floor(Math.random()*(i+1));
-    [arr[i],arr[j]] = [arr[j],arr[i]];
+  // Bug fix: Math.random() is not cryptographically secure — use CSPRNG for fair card distribution
+  const randomBytes = crypto.getRandomValues(new Uint32Array(arr.length));
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = randomBytes[i] % (i + 1);
+    [arr[i], arr[j]] = [arr[j], arr[i]];
   }
 }
 let dealtCardIds = new Set();
@@ -1126,30 +1441,25 @@ function cardHTML(card) {
   </div>`;
 }
 function renderCommunityCards() {
-  const el = document.getElementById('community-cards');
+  const el = EL['community-cards'];
   let html = '';
-  for (let i=0;i<5;i++) {
-    if (i<communityCards.length) html += cardHTML(communityCards[i]);
-    else html += '<div class="card-placeholder"></div>';
+  for (let i = 0; i < 5; i++) {
+    html += i < communityCards.length ? cardHTML(communityCards[i]) : '<div class="card-placeholder"></div>';
   }
   el.innerHTML = html;
 }
 function renderPlayerCards(pid, reveal=false) {
-  const el = document.getElementById(`cards-${pid}`);
+  const el = EL.cards[pid];
   const p = players[pid];
-  if (!p||!p.hand||p.hand.length===0) { el.innerHTML=''; return; }
-  // Show cards if: it's my seat, or reveal is true (showdown), or it's an AI
-  const show = pid===mySeatIdx || reveal || (p.isAI && reveal);
+  if (!p || !p.hand || p.hand.length === 0) { if (el) el.innerHTML = ''; return; }
+  const show = pid === mySeatIdx || reveal || (p.isAI && reveal);
   let html = '';
-  if (show) {
-    for (let c of p.hand) html += cardHTML(c);
-  } else {
-    html = '<div class="card-back"></div><div class="card-back"></div>';
-  }
+  if (show) { for (let c of p.hand) html += cardHTML(c); }
+  else html = '<div class="card-back"></div><div class="card-back"></div>';
   el.innerHTML = html;
 }
 function renderAllCards(revealAll=false) {
-  for (let i=0;i<4;i++) renderPlayerCards(i, revealAll);
+  for (let i=0;i<MAX_SEATS;i++) renderPlayerCards(i, revealAll);
   renderCommunityCards();
 }
 
@@ -1157,45 +1467,46 @@ function renderAllCards(revealAll=false) {
 //  UI
 // ═══════════════════════════════════════════════════════════
 function updateUI() {
-  document.getElementById('pot-display').textContent = `POT: $${pot.toLocaleString()}`;
-  document.getElementById('phase-label').textContent = phase.toUpperCase();
+  EL['pot-display'].textContent = `POT: $${pot.toLocaleString()}`;
+  EL['phase-label'].textContent = phase.toUpperCase();
   for (let p of players) {
-    document.getElementById(`pname-${p.id}`).textContent = p.name;
-    document.getElementById(`stack-${p.id}`).textContent = p.eliminated ? '💀 Eliminated' : `$${p.stack.toLocaleString()}`;
-    document.getElementById(`bet-${p.id}`).textContent = p.bet>0 ? `Bet: $${p.bet.toLocaleString()}` : '';
-    const info = document.getElementById(`info-${p.id}`);
-    info.classList.toggle('folded', p.folded || p.eliminated);
-    info.classList.toggle('active', currentPlayerIdx===p.id && handInProgress && !p.eliminated);
-    info.classList.toggle('dealer', dealerIdx===p.id && !p.eliminated);
-    info.classList.toggle('small-blind', handInProgress && p.id===smallBlindIdx && phase==='preflop' && !p.eliminated);
-    info.classList.toggle('big-blind', handInProgress && p.id===bigBlindIdx && phase==='preflop' && !p.eliminated);
+    EL.pname[p.id].textContent = p.name;
+    EL.stack[p.id].textContent = p.eliminated ? '💀 Eliminated' : `$${p.stack.toLocaleString()}`;
+    EL.bet[p.id].textContent   = p.bet > 0 ? `Bet: $${p.bet.toLocaleString()}` : '';
+    const info = EL.info[p.id];
+    info.classList.toggle('folded',      p.folded || p.eliminated);
+    info.classList.toggle('active',      currentPlayerIdx === p.id && handInProgress && !p.eliminated);
+    info.classList.toggle('dealer',      dealerIdx === p.id && !p.eliminated);
+    info.classList.toggle('small-blind', handInProgress && p.id === smallBlindIdx && phase === 'preflop' && !p.eliminated);
+    info.classList.toggle('big-blind',   handInProgress && p.id === bigBlindIdx   && phase === 'preflop' && !p.eliminated);
   }
+  // renderAllCards() already calls renderCommunityCards(); only call it here when
+  // updateUI is called standalone (not preceded by renderAllCards)
   renderCommunityCards();
   updateStats();
 
   // Host deal button visibility
-  const dealBtn = document.getElementById('btn-host-deal');
+  const dealBtn = EL['btn-host-deal'];
   if (isHost && dealBtn) dealBtn.style.display = handInProgress ? 'none' : 'inline-block';
-  // Next hand button: only host sees it, or solo player
-  document.getElementById('btn-next-hand').style.display = isHost ? 'inline-block' : 'none';
+  EL['btn-next-hand'].style.display = isHost ? 'inline-block' : 'none';
 }
 
 function setActionLabel(pid, text) {
-  const el = document.getElementById(`action-label-${pid}`);
+  const el = EL.actionLabel[pid];
   if (el) el.textContent = text;
 }
-function clearActionLabels() { for (let i=0;i<4;i++) setActionLabel(i,''); }
-function setMessage(msg) { document.getElementById('message-bar').textContent = msg; }
+function clearActionLabels() { for (let i = 0; i < MAX_SEATS; i++) { if (EL.actionLabel[i]) EL.actionLabel[i].textContent = ''; } }
+function setMessage(msg) { EL['message-bar'].textContent = msg; }
 
 function updateStats() {
-  document.getElementById('stat-hands').textContent = stats.hands;
-  document.getElementById('stat-wins').textContent = stats.wins;
-  document.getElementById('stat-biggest').textContent = `$${stats.biggest.toLocaleString()}`;
+  EL['stat-hands'].textContent   = stats.hands;
+  EL['stat-wins'].textContent    = stats.wins;
+  EL['stat-biggest'].textContent = `$${stats.biggest.toLocaleString()}`;
   const myStack = players[mySeatIdx] ? players[mySeatIdx].stack : STARTING_STACK;
   const pnl = myStack - stats.startStack;
-  const pnlEl = document.getElementById('stat-pnl');
-  pnlEl.textContent = (pnl>=0?'+':'') + `$${pnl.toLocaleString()}`;
-  pnlEl.style.color = pnl>=0 ? '#7fba7f' : '#e07070';
+  const pnlEl = EL['stat-pnl'];
+  pnlEl.textContent = (pnl >= 0 ? '+' : '') + `$${pnl.toLocaleString()}`;
+  pnlEl.style.color = pnl >= 0 ? '#7fba7f' : '#e07070';
 }
 
 function updateControls() {
@@ -1206,24 +1517,20 @@ function updateControls() {
   const canCheck = currentBet===0 || p.bet===currentBet || isBBOption;
   const callAmt = Math.min(currentBet-p.bet, p.stack);
 
-  document.getElementById('btn-fold').disabled = !myTurn;
-  document.getElementById('btn-check').disabled = !myTurn||!canCheck;
-  document.getElementById('btn-call').disabled = !myTurn||canCheck;
-  document.getElementById('btn-raise').disabled = !myTurn;
-  document.getElementById('btn-allin').disabled = !myTurn;
-  document.getElementById('btn-call').textContent = `Call $${callAmt.toLocaleString()}`;
+  EL['btn-fold'].disabled  = !myTurn;
+  EL['btn-check'].disabled = !myTurn || !canCheck;
+  EL['btn-call'].disabled  = !myTurn || canCheck;
+  EL['btn-raise'].disabled = !myTurn;
+  EL['btn-allin'].disabled = !myTurn;
+  EL['btn-call'].textContent = `Call $${callAmt.toLocaleString()}`;
 
-  // Only update the raise input and button label when it becomes the player's turn,
-  // so AI actions don't cause the field to jump around while the player is watching
   if (myTurn) {
     const minRaise = Math.max(currentBet * 2, BIG_BLIND * 2);
-    const ri = document.getElementById('raise-input');
+    const ri = EL['raise-input'];
     ri.value = minRaise;
-    ri.min = minRaise;
-
-    // "Bet" when no one has bet yet this round; "Raise" when facing a bet
-    document.getElementById('btn-raise').textContent = canCheck ? 'Bet' : 'Raise';
-    document.getElementById('raise-area').querySelector('.raise-label').textContent = canCheck ? 'Bet:' : 'Raise:';
+    ri.min   = minRaise;
+    EL['btn-raise'].textContent = canCheck ? 'Bet' : 'Raise';
+    EL['raise-area'].querySelector('.raise-label').textContent = canCheck ? 'Bet:' : 'Raise:';
   }
 }
 
@@ -1242,11 +1549,11 @@ function nextActiveSeat(from, steps=1) {
   let idx = from;
   for (let i = 0; i < steps; i++) {
     let found = false;
-    for (let j = 1; j <= 4; j++) {
-      const next = (idx + j) % 4;
+    for (let j = 1; j <= MAX_SEATS; j++) {
+      const next = (idx + j) % MAX_SEATS;
       if (!players[next].eliminated) { idx = next; found = true; break; }
     }
-    if (!found) return idx; // only 1 active player left
+    if (!found) return idx;
   }
   return idx;
 }
@@ -1268,11 +1575,9 @@ function startHand() {
   // Count active (non-eliminated) players
   const activePlayers = players.filter(p => !p.eliminated);
   if (activePlayers.length < 2) {
-    // Game over — only one player left
+    // Game over — show the overlay with stats and new-game / menu buttons
     const lastStanding = activePlayers[0] || players[mySeatIdx];
-    handInProgress = false; playersToAct = []; updateControls();
-    setMessage(`🏆 ${lastStanding.name} wins the game! All opponents eliminated.`);
-    updateUI(); broadcastState();
+    showGameOver(lastStanding);
     return;
   }
 
@@ -1297,7 +1602,8 @@ function startHand() {
   setActionLabel(bigBlindIdx,'Big Blind');
   phase = 'preflop';
   stats.hands++;
-  startBettingRound((bigBlindIdx+1)%4);
+  // Bug fix: use nextActiveSeat to skip eliminated seats when finding UTG
+  startBettingRound(nextActiveSeat(bigBlindIdx));
   const dn=players[dealerIdx].name,sbn=players[smallBlindIdx].name,bbn=players[bigBlindIdx].name;
   setMessage(`Hand #${stats.hands} | Dealer:${dn} SB:${sbn}($${SMALL_BLIND}) BB:${bbn}($${BIG_BLIND})`);
   renderAllCards(false);
@@ -1315,8 +1621,8 @@ function postBlind(pid, amount) {
 
 function startBettingRound(startPid) {
   playersToAct = [];
-  for (let i=0;i<4;i++) {
-    const pid = (startPid+i)%4;
+  for (let i=0;i<players.length;i++) {
+    const pid = (startPid+i)%players.length;
     if (!players[pid].folded && !players[pid].allIn && !players[pid].eliminated) playersToAct.push(pid);
   }
   currentPlayerIdx = playersToAct.length>0 ? playersToAct[0] : -1;
@@ -1330,12 +1636,16 @@ function playerAction(action) {
   if (!handInProgress) return;
   if (playersToAct.length===0 || playersToAct[0]!==mySeatIdx) return;
 
+  // Bug fix: parseInt can return NaN if the input is empty/invalid; default to 0
+  const rawRaise = parseInt(document.getElementById('raise-input').value);
+  const raiseAmt = Number.isFinite(rawRaise) && rawRaise >= 0 ? rawRaise : 0;
+
   if (isHost) {
     // Host executes directly
-    executeAction(mySeatIdx, action, parseInt(document.getElementById('raise-input').value));
+    executeAction(mySeatIdx, action, raiseAmt);
   } else {
     // Client sends to host
-    hostConn.send({ type:'action', action, raiseAmt: parseInt(document.getElementById('raise-input').value) });
+    hostConn.send({ type:'action', action, raiseAmt });
     // Disable buttons while waiting
     ['btn-fold','btn-check','btn-call','btn-raise','btn-allin'].forEach(id => {
       document.getElementById(id).disabled = true;
@@ -1384,8 +1694,8 @@ function executeAction(pid, action, raiseAmt) {
 function recordAction(raisedNewBet) {
   const actedPid = playersToAct.shift();
   if (raisedNewBet) {
-    for (let i=1;i<=3;i++) {
-      const pid=(actedPid+i)%4;
+    for (let i=1;i<=players.length;i++) {
+      const pid=(actedPid+i)%players.length;
       if (!players[pid].folded && !players[pid].allIn && !playersToAct.includes(pid)) {
         playersToAct.push(pid);
       }
@@ -1432,13 +1742,13 @@ function nextPhase() {
   } else if (phase==='turn') {
     phase='river'; communityCards.push(dealCard()); setMessage('🂠 The River!');
   } else if (phase==='river') { endHand(); return; }
-  startBettingRound((dealerIdx+1)%4);
+  startBettingRound(nextActiveSeat(dealerIdx));  // Bug fix: was (dealerIdx+1)%MAX_SEATS, could land on eliminated seat
   updateUI(); updateControls(); broadcastState(); scheduleNext();
 }
 
 function runOutBoard() {
   players.forEach(p=>{ p.bet=0; }); currentBet=0; clearActionLabels(); playersToAct=[];
-  for (let i=1;i<4;i++) { if(!players[i].folded) renderPlayerCards(i,true); }
+  for (let i=0;i<players.length;i++) { if(!players[i].folded) renderPlayerCards(i,true); }  // Bug fix: was i=1, skipped seat 0
   const handId = stats.hands; // snapshot — if a new hand starts, callbacks from this one are stale
   const deal = () => {
     if (stats.hands !== handId) return; // stale — a new hand started, abort
@@ -1455,22 +1765,29 @@ function runOutBoard() {
 function endHand() {
   handInProgress=false; phase='showdown'; playersToAct=[];
   const active = players.filter(p=>!p.folded && !p.eliminated);
-  let winner;
+  let winner, handResult;
   if (active.length===1) {
-    winner=active[0];
+    winner = active[0];
+    handResult = 'Last player standing';
   } else {
-    let best=-1, bestP=null;
+    let bestVal = -1, bestP = null, bestResult = null;
     for (let p of active) {
-      const v=getBestHandValue(p.hand,communityCards);
-      if(v>best){best=v;bestP=p;}
+      const res = evaluateBestHand(p.hand, communityCards);  // single pass per player
+      if (res.value > bestVal) { bestVal = res.value; bestP = p; bestResult = res; }
     }
-    winner=bestP;
+    winner = bestP;
+    handResult = bestResult ? bestResult.name : '';
+    // Store best5 on winner for showWinner display — already computed, no extra pass needed
+    if (bestResult) winner._best5 = bestResult.cards;
   }
-  winner.stack+=pot;
-  const handResult = active.length>1 ? getBestHandName(winner.hand,communityCards) : 'Last player standing';
+  if (!winner) {
+    console.error('endHand: could not determine winner');
+    return;
+  }
+  winner.stack += pot;
   if (winner.id===mySeatIdx) {
     stats.wins++;
-    if(pot>stats.biggest) stats.biggest=pot;
+    if (pot > stats.biggest) stats.biggest = pot;
   }
   broadcastState();
   showWinner(winner, handResult);
@@ -1478,22 +1795,23 @@ function endHand() {
 }
 
 function showWinner(winner, handName) {
-  document.getElementById('winner-title').textContent = winner.id===mySeatIdx ? '🏆 You Win!' : `${winner.name} Wins!`;
-  document.getElementById('winner-hand').textContent = handName;
-  document.getElementById('winner-amount').textContent = `+$${pot.toLocaleString()}`;
-  const best5 = getBest5Cards(winner.hand, communityCards);
-  document.getElementById('winner-cards').innerHTML = best5.map(cardHTML).join('');
-  document.getElementById('winner-overlay').classList.add('show');
-  // Reveal all cards
+  EL['winner-title'].textContent  = winner.id===mySeatIdx ? '🏆 You Win!' : `${winner.name} Wins!`;
+  EL['winner-hand'].textContent   = handName;
+  EL['winner-amount'].textContent = `+$${pot.toLocaleString()}`;
+  // Reuse best5 computed in endHand; fall back to getBest5Cards if called from elsewhere
+  const best5 = winner._best5 || getBest5Cards(winner.hand, communityCards);
+  winner._best5 = null; // clear temp flag
+  EL['winner-cards'].innerHTML = best5.map(cardHTML).join('');
+  EL['winner-overlay'].classList.add('show');
   renderAllCards(true);
 }
 
 function nextHand() {
   document.getElementById('winner-overlay').classList.remove('show');
   clearTimeout(runOutTimeout); runOutTimeout = null;
-  phase='waiting'; handInProgress=false; communityCards=[]; pot=0;
+  phase='waiting'; handInProgress=false; communityCards=[]; pot=0; currentBet=0;
   playersToAct=[];
-  players.forEach(p=>{ p.hand=[]; p.bet=0; p.folded=false; });
+  players.forEach(p=>{ p.hand=[]; p.bet=0; p.folded=false; p.allIn=false; });  // Bug fix: clear allIn and pot
   renderAllCards(false);
   updateUI(); updateControls(); broadcastState();
   setMessage('Press Deal to start the next hand!');
@@ -1502,13 +1820,32 @@ function nextHand() {
 function showBustOverlay() {
   handInProgress=false; playersToAct=[]; updateControls();
   const pnl = (players[mySeatIdx]?.stack||0) - stats.startStack;
-  document.getElementById('bust-stats').innerHTML =
+  EL['bust-stats'].innerHTML =
     `Hands: <b>${stats.hands}</b><br>Wins: <b>${stats.wins}</b><br>Net: <b style="color:#e07070">$${pnl.toLocaleString()}</b>`;
-  document.getElementById('bust-overlay').style.display='flex';
+  EL['bust-overlay'].style.display='flex';
+}
+
+function showGameOver(winnerPlayer) {
+  handInProgress = false; playersToAct = []; updateControls();
+  broadcastState();
+  const isMyWin = winnerPlayer && winnerPlayer.id === mySeatIdx;
+  const pnl = (players[mySeatIdx]?.stack || 0) - stats.startStack;
+
+  EL['gameover-title'].textContent    = isMyWin ? '🏆 You Win!' : `${winnerPlayer ? winnerPlayer.name : 'Someone'} Wins!`;
+  EL['gameover-subtitle'].textContent = isMyWin ? 'You eliminated all opponents!' : 'Better luck next time.';
+  EL['gameover-stats'].innerHTML =
+    `Hands: <b>${stats.hands}</b>&nbsp;&nbsp;Wins: <b>${stats.wins}</b><br>` +
+    `Net: <b style="color:${pnl >= 0 ? '#7fba7f' : '#e07070'}">${pnl >= 0 ? '+' : ''}$${pnl.toLocaleString()}</b>`;
+
+  // Show "New Game" only in solo — multiplayer players should return to lobby
+  EL['gameover-btn-newgame'].style.display = isSolo ? 'inline-block' : 'none';
+
+  EL['gameover-overlay'].style.display = 'flex';
 }
 
 function newGame() {
   document.getElementById('bust-overlay').style.display='none';
+  EL['gameover-overlay'].style.display = 'none';
   stats={hands:0,wins:0,biggest:0,startStack:STARTING_STACK};
   dealerIdx=0; handInProgress=false; communityCards=[]; pot=0; currentBet=0; playersToAct=[];
   initPlayers();
@@ -1578,7 +1915,7 @@ function npcAction(pid) {
   const callFraction = p.stack > 0 ? callAmt / p.stack : 1;
   const betPressure = pot > 0 ? Math.min(callAmt / pot, 2.0) : 0;
   const canRaise = Math.floor(currentBet / BIG_BLIND) < 10 && callAmt < p.stack * 0.75;
-  const inPos = pid === dealerIdx || ((pid - dealerIdx + 4) % 4) > ((currentPlayerIdx - dealerIdx + 4) % 4);
+  const inPos = pid === dealerIdx || ((pid - dealerIdx + MAX_SEATS) % MAX_SEATS) > ((currentPlayerIdx - dealerIdx + MAX_SEATS) % MAX_SEATS);
 
   const r = Math.random();
   const isBluffing = r < traits.bluffFreq;
@@ -1643,50 +1980,75 @@ function combinations(arr,k) {
   const [f,...r]=arr;
   return [...combinations(r,k-1).map(c=>[f,...c]),...combinations(r,k)];
 }
-function getBestHandValue(hole,community) {
-  const all=[...hole,...community];
-  if(all.length<5) return evaluateFiveCard(all);
-  return Math.max(...combinations(all,5).map(evaluateFiveCard));
+function getBestHandValue(hole, community) {
+  const all = [...hole, ...community];
+  if (all.length < 5) return evaluateFiveCard(all);
+  let best = -1;
+  for (let c of combinations(all, 5)) { const v = evaluateFiveCard(c); if (v > best) best = v; }
+  return best;
 }
-function getBestHandName(hole,community) {
-  const all=[...hole,...community];
-  let best=-1,bc;
-  for(let c of combinations(all,5)){const v=evaluateFiveCard(c);if(v>best){best=v;bc=c;}}
-  return HAND_NAMES[getHandRank(bc||all.slice(0,5))];
+function getBestHandName(hole, community) {
+  const all = [...hole, ...community];
+  let best = -1, bc;
+  for (let c of combinations(all, 5)) { const v = evaluateFiveCard(c); if (v > best) { best = v; bc = c; } }
+  return HAND_NAMES[getHandRank(bc || all.slice(0, 5))];
 }
-function getBest5Cards(hole,community) {
-  const all=[...hole,...community];
-  if(all.length<=5) return all;
-  let best=-1,bc;
-  for(let c of combinations(all,5)){const v=evaluateFiveCard(c);if(v>best){best=v;bc=c;}}
-  return bc||all.slice(0,5);
+function getBest5Cards(hole, community) {
+  const all = [...hole, ...community];
+  if (all.length <= 5) return all;
+  let best = -1, bc;
+  for (let c of combinations(all, 5)) { const v = evaluateFiveCard(c); if (v > best) { best = v; bc = c; } }
+  return bc || all.slice(0, 5);
 }
-function evaluateFiveCard(cards) {
-  const vals=cards.map(c=>RANK_VAL[c.rank]).sort((a,b)=>b-a);
-  const rank=getHandRank(cards);
-  const counts={};
-  for(let v of vals) counts[v]=(counts[v]||0)+1;
-  const sorted=Object.entries(counts).sort((a,b)=>b[1]-a[1]||b[0]-a[0]);
-  let score=rank*1000000;
-  sorted.forEach((e,i)=>{ score+=parseInt(e[0])*Math.pow(15,4-i); });
-  return score;
+// Single-pass version used at showdown: returns {value, name, cards} in one enumeration
+function evaluateBestHand(hole, community) {
+  const all = [...hole, ...community];
+  if (all.length < 5) {
+    const v = evaluateFiveCard(all);
+    return { value: v, name: HAND_NAMES[getHandRank(all)], cards: all };
+  }
+  let bestVal = -1, bestCards;
+  for (let c of combinations(all, 5)) {
+    const v = evaluateFiveCard(c);
+    if (v > bestVal) { bestVal = v; bestCards = c; }
+  }
+  return { value: bestVal, name: HAND_NAMES[getHandRank(bestCards)], cards: bestCards };
 }
 function getHandRank(cards) {
-  const vals=cards.map(c=>RANK_VAL[c.rank]).sort((a,b)=>b-a);
-  const suits=cards.map(c=>c.suit);
-  const flush=suits.every(s=>s===suits[0]);
-  const uv=[...new Set(vals)].sort((a,b)=>b-a);
-  let straight=false,shi=0;
-  for(let i=0;i<=uv.length-5;i++){if(uv[i]-uv[i+4]===4){straight=true;shi=uv[i];break;}}
-  if(!straight&&vals.includes(14)&&vals.includes(2)&&vals.includes(3)&&vals.includes(4)&&vals.includes(5)){straight=true;shi=5;}
-  const counts={};
-  for(let v of vals) counts[v]=(counts[v]||0)+1;
-  const cnt=Object.values(counts).sort((a,b)=>b-a);
-  if(straight&&flush) return shi===14?9:8;
-  if(cnt[0]===4) return 7; if(cnt[0]===3&&cnt[1]===2) return 6;
-  if(flush) return 5; if(straight) return 4;
-  if(cnt[0]===3) return 3; if(cnt[0]===2&&cnt[1]===2) return 2;
-  if(cnt[0]===2) return 1; return 0;
+  const vals  = cards.map(c => RANK_VAL[c.rank]).sort((a, b) => b - a);
+  const suits = cards.map(c => c.suit);
+  const flush = suits.every(s => s === suits[0]);
+  const uv    = [...new Set(vals)].sort((a, b) => b - a);
+  let straight = false, shi = 0;
+  for (let i = 0; i <= uv.length - 5; i++) {
+    if (uv[i] - uv[i+4] === 4) { straight = true; shi = uv[i]; break; }
+  }
+  if (!straight && vals.includes(14) && vals.includes(2) && vals.includes(3) && vals.includes(4) && vals.includes(5)) {
+    straight = true; shi = 5;
+  }
+  const counts = {};
+  for (let v of vals) counts[v] = (counts[v] || 0) + 1;
+  const cnt = Object.values(counts).sort((a, b) => b - a);
+  if (straight && flush) return shi === 14 ? 9 : 8;
+  if (cnt[0] === 4) return 7;
+  if (cnt[0] === 3 && cnt[1] === 2) return 6;
+  if (flush)    return 5;
+  if (straight) return 4;
+  if (cnt[0] === 3) return 3;
+  if (cnt[0] === 2 && cnt[1] === 2) return 2;
+  if (cnt[0] === 2) return 1;
+  return 0;
+}
+function evaluateFiveCard(cards) {
+  const rank   = getHandRank(cards);
+  const vals   = cards.map(c => RANK_VAL[c.rank]).sort((a, b) => b - a);
+  const counts = {};
+  for (let v of vals) counts[v] = (counts[v] || 0) + 1;
+  // Sort groups: primary by count desc, secondary by rank desc
+  const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1] || b[0] - a[0]);
+  let score = rank * 1000000;
+  sorted.forEach((e, i) => { score += +e[0] * Math.pow(15, 4 - i); });
+  return score;
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -1714,24 +2076,36 @@ function scaleTableScene() {
   scene.style.marginBottom = Math.round((naturalH * scale) - naturalH) + 'px';
 }
 
-window.addEventListener('resize', scaleTableScene);
+let _scaleDebounce = null;
+window.addEventListener('resize', () => {
+  clearTimeout(_scaleDebounce);
+  _scaleDebounce = setTimeout(scaleTableScene, 80);
+});
+
+// F-05: Sync chat input maxlength to the single CHAT_MAX_LEN constant
+document.addEventListener('DOMContentLoaded', () => {
+  buildDOMCache();
+  if (EL['chat-input']) EL['chat-input'].maxLength = CHAT_MAX_LEN;
+});
 
 
 // ═══════════════════════════════════════════════════════════
 //  CHAT — SECURE ENCRYPTED CHAT
-//  Security properties:
-//    • AES-GCM-256 encryption (host-generated 256-bit session secret)
-//    • HMAC-SHA-256 per-sender signing key (prevents message forgery)
-//    • Monotonic sequence numbers (replay attack prevention)  
+//  Security properties (post-audit fixes applied):
+//    • AES-GCM-256 encryption
+//    • ECDH (P-256) key exchange — session secret never transmitted in plaintext (F-01)
+//    • HMAC-SHA-256 per-sender signing key (prevents cross-seat message forgery)
+//    • Monotonic sequence numbers (replay attack prevention; F-06: timestamp check removed)
 //    • Counter-hybrid IVs (uniqueness guaranteed)
-//    • Rate limiting + payload size limits
-//    • XSS-safe rendering
+//    • Rate limiting on ALL senders including host, keyed by seatIdx (F-04)
+//    • Payload and message-length limits from single CHAT_MAX_LEN constant (F-05)
+//    • XSS-safe rendering via DOM API throughout (F-02)
 //
-//  Note on the trust model: all players derive keys from the same
-//  session secret, so the host *could* read messages. For a poker
-//  game where the host runs all game logic anyway this is the same
-//  trust level as the rest of the app. True per-player E2E requires
-//  a separate signaling server for ECDH — out of scope here.
+//  Trust model (F-07): The host derives the same sessionSecret as all clients
+//  via the ECDH exchange, so the host can read all messages. This is inherent
+//  to the architecture (host runs all game logic). True per-player E2E requires
+//  per-pair ECDH without a shared secret — out of scope for this game.
+//  Players are notified of this in the UI when they join.
 // ═══════════════════════════════════════════════════════════
 
 let chatAESKey    = null;   // AES-GCM-256 for encryption
@@ -1739,6 +2113,7 @@ let chatHMACKey   = null;   // HMAC-SHA-256 for signing (per sender)
 let chatSeq       = 0;      // outgoing sequence counter
 let chatIVCounter = 0;      // IV counter (hybrid with random bytes)
 let seenSeqs      = {};     // { seatIdx: lastSeqSeen } replay prevention
+let verifyKeyCache = {};    // { seatIdx: CryptoKey } — cached to avoid re-deriving per message
 let chatCollapsed = false;
 let chatUnreadCount = 0;
 
@@ -1778,12 +2153,16 @@ async function initChatCrypto() {
   chatSeq = 0;
   chatIVCounter = 0;
   seenSeqs = {};
-  appendSystemMsg('🔒 Chat encrypted · AES-256-GCM');
+  verifyKeyCache = {};
+  appendSystemMsg('🔒 Chat encrypted · AES-256-GCM · ECDH key exchange');
+  // F-07: disclose trust model so players understand the host's visibility
+  appendSystemMsg('ℹ️ The room host can read all messages — this is by design.');
 }
 
-// Also derive a verify key for a given seat (to verify their messages)
+// Also derive a verify key for a given seat (to verify their messages) — cached per seat
 async function getVerifyKey(seatIdx) {
   if (!sessionSecret) return null;
+  if (verifyKeyCache[seatIdx]) return verifyKeyCache[seatIdx];
   const baseKey = await crypto.subtle.importKey(
     'raw', sessionSecret, 'HKDF', false, ['deriveBits']
   );
@@ -1793,9 +2172,11 @@ async function getVerifyKey(seatIdx) {
       info: new TextEncoder().encode('hmac-sha256') },
     baseKey, 256
   );
-  return crypto.subtle.importKey(
+  const key = await crypto.subtle.importKey(
     'raw', bits, { name: 'HMAC', hash: 'SHA-256' }, false, ['verify']
   );
+  verifyKeyCache[seatIdx] = key;
+  return key;
 }
 
 // ── Encrypt + sign ───────────────────────────────────────────
@@ -1803,6 +2184,8 @@ async function encryptChatMsg(text) {
   if (!chatAESKey || !chatHMACKey) return null;
 
   // Hybrid IV: 8 random + 4 counter bytes
+  // Bug fix: guard against counter wraparound at 2^32 — regenerate random portion
+  if (chatIVCounter >= 0xFFFFFFFF) { chatIVCounter = 0; }
   const iv = new Uint8Array(12);
   crypto.getRandomValues(iv.subarray(0, 8));
   new DataView(iv.buffer).setUint32(8, chatIVCounter++, false);
@@ -1866,19 +2249,15 @@ async function decryptChatMsg(b64, fromSeatIdx) {
   try { obj = JSON.parse(new TextDecoder().decode(plain)); }
   catch(e) { return null; }
 
-  // Replay check
+  // Replay check — monotonic sequence numbers are the authoritative replay defence.
+  // F-06: timestamp staleness check removed; cross-peer clock skew causes false positives,
+  // and seq numbers provide stronger, clock-independent replay protection.
   const lastSeen = seenSeqs[fromSeatIdx] ?? -1;
   if (typeof obj.n !== 'number' || obj.n <= lastSeen) {
     appendSystemMsg('⚠ Replayed message blocked');
     return null;
   }
   seenSeqs[fromSeatIdx] = obj.n;
-
-  // Staleness check (30s)
-  if (typeof obj.ts === 'number' && Date.now() - obj.ts > 30000) {
-    appendSystemMsg('⚠ Stale message blocked');
-    return null;
-  }
 
   return obj;
 }
@@ -1888,7 +2267,13 @@ async function sendChat() {
   const input = document.getElementById('chat-input');
   const text = input.value.trim();
   if (!text) return;
-  if (text.length > 200) return;
+  if (text.length > CHAT_MAX_LEN) return;
+  // F-04: rate-limit the host's own messages with the same rules as relayed messages
+  if (isHost && !chatRateCheck(mySeatIdx)) {
+    appendSystemMsg('⚠ Sending too fast — slow down');
+    input.value = '';
+    return;
+  }
   input.value = '';
   appendChatMsg(myName, text, true);
   if (isSolo) return;
@@ -1909,30 +2294,41 @@ async function receiveChat(fromSeat, payload) {
   const obj = await decryptChatMsg(payload, fromSeat);
   if (!obj) return;
   const text = String(obj.t || '');
-  if (text.length > 200) { appendSystemMsg('⚠ Oversized message blocked'); return; }
+  if (text.length > CHAT_MAX_LEN) { appendSystemMsg('⚠ Oversized message blocked'); return; }
   const senderName = (players && players[fromSeat]) ? players[fromSeat].name : `Seat ${fromSeat+1}`;
   appendChatMsg(senderName, text, false);
 }
 
 // ── Host relay ───────────────────────────────────────────────
-const chatRateMap = new WeakMap();
+// F-04: rate-limit map keyed by seatIdx (not conn object) so reconnects don't reset the window
+const chatRateMap = new Map();   // seatIdx → timestamp[]
 const CHAT_MAX = 5, CHAT_WINDOW = 5000;
 
-async function relayOrReceiveChat(fromConn, data) {
-  // Rate limit
+// Shared rate-check helper — returns true if the sender is within limits
+function chatRateCheck(seatIdx) {
   const now = Date.now();
-  if (!chatRateMap.has(fromConn)) chatRateMap.set(fromConn, []);
-  const ts = chatRateMap.get(fromConn).filter(t => now - t < CHAT_WINDOW);
-  ts.push(now); chatRateMap.set(fromConn, ts);
-  if (ts.length > CHAT_MAX) return;
-  // Size limit
-  if (typeof data.payload !== 'string' || data.payload.length > 1000) return;
-  // Relay to all other clients
+  const ts = (chatRateMap.get(seatIdx) || []).filter(t => now - t < CHAT_WINDOW);
+  ts.push(now);
+  chatRateMap.set(seatIdx, ts);
+  return ts.length <= CHAT_MAX;
+}
+
+async function relayOrReceiveChat(fromConn, data) {
+  // Rate limit — keyed by verified seat index (F-04)
+  if (!chatRateCheck(fromConn._seatIdx)) return;
+  // Size limit — base64 of CHAT_MAX_LEN bytes + overhead; 425 bytes is a safe ceiling
+  if (typeof data.payload !== 'string' || data.payload.length > Math.ceil(CHAT_MAX_LEN * 1.5) + 200) return;
+
+  // Use the connection's verified seat index — ignore client-supplied data.from
+  const trustedFrom = fromConn._seatIdx;
+  const canonicalMsg = { type: 'chat', from: trustedFrom, payload: data.payload };
+
+  // Relay to all other clients with the corrected seat index
   clientConns.forEach(c => {
-    if (c.conn !== fromConn) try { c.conn.send(data); } catch(e){}
+    if (c.conn !== fromConn) try { c.conn.send(canonicalMsg); } catch(e){}
   });
-  // Host decrypts for itself
-  await receiveChat(data.from, data.payload);
+  // Host decrypts for itself using the verified seat
+  await receiveChat(trustedFrom, data.payload);
 }
 
 // ── UI helpers ───────────────────────────────────────────────
@@ -1996,11 +2392,15 @@ function goToMainMenu() {
   handInProgress = false; phase = 'waiting';
   communityCards = []; pot = 0; currentBet = 0; playersToAct = [];
   isHost = false; isSolo = false; humanSeats = [];
-  stats = { hands:0, wins:0, biggest:0, startStack:10000 };
+  MAX_SEATS = 4; disabledAISeats = new Set();
+  setSeatVisibility();
+  stats = { hands:0, wins:0, biggest:0, startStack:STARTING_STACK };
   // Reset crypto state
   chatAESKey = null; chatHMACKey = null;
-  chatSeq = 0; chatIVCounter = 0; seenSeqs = {};
+  chatSeq = 0; chatIVCounter = 0; seenSeqs = {}; verifyKeyCache = {};
   sessionSecret = null;
+  _ecdhKeyPair = null; _ecdhPeerPublicKey = null;  // F-01: clear ECDH state
+  chatRateMap.clear();   // F-04: clear per-seat rate-limit history
   chatUnreadCount = 0;
   // Hide game-wrapper via class removal (not inline style) to avoid override on re-entry
   const gwEl = document.getElementById('game-wrapper');
@@ -2015,6 +2415,7 @@ function goToMainMenu() {
   });
   document.getElementById('winner-overlay').classList.remove('show');
   document.getElementById('bust-overlay').style.display = 'none';
+  EL['gameover-overlay'].style.display = 'none';
   document.getElementById('chat-messages').innerHTML = '';
   document.getElementById('lobby-status').textContent = '';
   document.getElementById('lobby-error').textContent = '';
@@ -2039,7 +2440,7 @@ function goToMainMenu() {
   <div id="chat-body">
     <div id="chat-messages"></div>
     <div id="chat-input-row">
-      <input id="chat-input" placeholder="Say something…" maxlength="120"
+      <input id="chat-input" placeholder="Say something…" maxlength="150"
         onkeydown="if(event.key==='Enter') sendChat()">
       <button id="chat-send" onclick="sendChat()">➤</button>
     </div>
