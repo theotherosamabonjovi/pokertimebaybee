@@ -637,6 +637,8 @@
     <div class="stat-row"><span>Wins</span><span class="stat-val" id="stat-wins">0</span></div>
     <div class="stat-row"><span>Best Pot</span><span class="stat-val" id="stat-biggest">$0</span></div>
     <div class="stat-row"><span>Net P&amp;L</span><span class="stat-val" id="stat-pnl">$0</span></div>
+    <div class="stat-row" title="Hands you folded that would have beaten at least one opponent"><span>Fold Regrets</span><span class="stat-val" id="stat-fold-worse">0</span></div>
+    <div class="stat-row" title="Times you won with high card only and all opponents folded"><span>Bluffs</span><span class="stat-val" id="stat-bluffs">0</span></div>
   </div>
 
   <!-- Difficulty -->
@@ -734,7 +736,7 @@ function buildDOMCache() {
     'message-bar','controls','stats-panel','difficulty-panel','diff-rows',
     'btn-host-deal','btn-next-hand','btn-main-menu',
     'btn-fold','btn-check','btn-call','btn-raise','btn-allin','raise-input','raise-area',
-    'stat-hands','stat-wins','stat-biggest','stat-pnl',
+    'stat-hands','stat-wins','stat-biggest','stat-pnl','stat-fold-worse','stat-bluffs',
     'room-badge','net-badge',
     'winner-overlay','winner-title','winner-hand','winner-amount','winner-cards',
     'bust-overlay','bust-stats',
@@ -784,7 +786,12 @@ let dealerIdx = 0;
 let smallBlindIdx, bigBlindIdx;
 let handInProgress = false;
 let playersToAct = [];
-let stats = { hands:0, wins:0, biggest:0, startStack:STARTING_STACK };
+let stats = { hands:0, wins:0, biggest:0, startStack:STARTING_STACK,
+              foldedToWorse:0, successfulBluffs:0 };
+
+// Per-hand tracking for post-game analysis
+// foldSnapshot: recorded when the player folds — preserves their hole cards + community at fold time
+let foldSnapshot = null;   // { hand: [...], community: [...], phase } | null
 let npcThinkTimeout = null;
 let runOutTimeout = null;
 
@@ -1186,7 +1193,14 @@ function applyGameState(state) {
   bigBlindIdx = s.bigBlindIdx;
   handInProgress = s.handInProgress;
   playersToAct = Array.isArray(s.playersToAct) ? s.playersToAct : [];
-  stats = (s.stats && typeof s.stats === 'object') ? s.stats : stats;
+  if (s.stats && typeof s.stats === 'object') {
+    // Merge host stats but preserve local analysis counters — the host doesn't track these for the client
+    stats = {
+      ...s.stats,
+      foldedToWorse:   stats.foldedToWorse   ?? 0,
+      successfulBluffs: stats.successfulBluffs ?? 0,
+    };
+  }
 
   renderAllCards();
   updateUI();
@@ -1499,9 +1513,11 @@ function clearActionLabels() { for (let i = 0; i < MAX_SEATS; i++) { if (EL.acti
 function setMessage(msg) { EL['message-bar'].textContent = msg; }
 
 function updateStats() {
-  EL['stat-hands'].textContent   = stats.hands;
-  EL['stat-wins'].textContent    = stats.wins;
-  EL['stat-biggest'].textContent = `$${stats.biggest.toLocaleString()}`;
+  EL['stat-hands'].textContent      = stats.hands;
+  EL['stat-wins'].textContent       = stats.wins;
+  EL['stat-biggest'].textContent    = `$${stats.biggest.toLocaleString()}`;
+  EL['stat-fold-worse'].textContent = stats.foldedToWorse;
+  EL['stat-bluffs'].textContent     = stats.successfulBluffs;
   const myStack = players[mySeatIdx] ? players[mySeatIdx].stack : STARTING_STACK;
   const pnl = myStack - stats.startStack;
   const pnlEl = EL['stat-pnl'];
@@ -1587,6 +1603,7 @@ function startHand() {
   handInProgress = true;
   communityCards = [];
   pot = 0; currentBet = 0; playersToAct = [];
+  foldSnapshot = null;   // clear any snapshot from the previous hand
   buildDeck();
   players.forEach(p => {
     p.hand = p.eliminated ? [] : [dealCard(), dealCard()];
@@ -1660,6 +1677,15 @@ function executeAction(pid, action, raiseAmt) {
 
   if (action==='fold') {
     p.folded=true; setActionLabel(pid,'Fold');
+    // Analysis: if this is the human player folding, snapshot their hand so we can
+    // compare it against opponents' holdings at showdown
+    if (pid === mySeatIdx) {
+      foldSnapshot = {
+        hand:      p.hand.slice(),
+        community: communityCards.slice(),
+        phase
+      };
+    }
   } else if (action==='check') {
     setActionLabel(pid,'Check');
   } else if (action==='call') {
@@ -1777,7 +1803,6 @@ function endHand() {
     }
     winner = bestP;
     handResult = bestResult ? bestResult.name : '';
-    // Store best5 on winner for showWinner display — already computed, no extra pass needed
     if (bestResult) winner._best5 = bestResult.cards;
   }
   if (!winner) {
@@ -1789,6 +1814,34 @@ function endHand() {
     stats.wins++;
     if (pot > stats.biggest) stats.biggest = pot;
   }
+
+  // ── Post-hand analysis ──────────────────────────────────────
+  // Analysis A: did the player fold a hand that would have beaten someone?
+  if (foldSnapshot) {
+    const finalCommunity = communityCards.slice(); // board as it ended
+    // Evaluate the player's folded hand against the final board
+    const foldedVal = evaluateBestHand(foldSnapshot.hand, finalCommunity).value;
+    // Check if that hand beats ANY active opponent's best hand
+    const wouldHaveBeatSomeone = active.some(opp => {
+      if (opp.id === mySeatIdx) return false;
+      return foldedVal > evaluateBestHand(opp.hand, finalCommunity).value;
+    });
+    if (wouldHaveBeatSomeone) stats.foldedToWorse++;
+    foldSnapshot = null;
+  }
+
+  // Analysis B: successful bluff — player won, all opponents folded (no showdown),
+  // and the player's own hand is weak (below one pair = hand rank 0)
+  if (winner.id === mySeatIdx && active.length === 1) {
+    // All opponents folded — check if it was with a weak hand
+    const myHandVal = evaluateBestHand(winner.hand, communityCards);
+    // rank 0 = high card only; rank 1 = one pair — anything below a pair counts as a bluff
+    if (myHandVal.value < 1000000) {  // rank 0 * 1000000 means high card
+      stats.successfulBluffs++;
+    }
+  }
+  // ── End analysis ────────────────────────────────────────────
+
   broadcastState();
   showWinner(winner, handResult);
   updateUI();
@@ -1821,7 +1874,9 @@ function showBustOverlay() {
   handInProgress=false; playersToAct=[]; updateControls();
   const pnl = (players[mySeatIdx]?.stack||0) - stats.startStack;
   EL['bust-stats'].innerHTML =
-    `Hands: <b>${stats.hands}</b><br>Wins: <b>${stats.wins}</b><br>Net: <b style="color:#e07070">$${pnl.toLocaleString()}</b>`;
+    `Hands: <b>${stats.hands}</b>&nbsp;&nbsp;Wins: <b>${stats.wins}</b><br>` +
+    `Net: <b style="color:#e07070">$${pnl.toLocaleString()}</b><br>` +
+    `🤦 Fold Regrets: <b>${stats.foldedToWorse}</b>&nbsp;&nbsp;🎭 Bluffs: <b>${stats.successfulBluffs}</b>`;
   EL['bust-overlay'].style.display='flex';
 }
 
@@ -1835,7 +1890,9 @@ function showGameOver(winnerPlayer) {
   EL['gameover-subtitle'].textContent = isMyWin ? 'You eliminated all opponents!' : 'Better luck next time.';
   EL['gameover-stats'].innerHTML =
     `Hands: <b>${stats.hands}</b>&nbsp;&nbsp;Wins: <b>${stats.wins}</b><br>` +
-    `Net: <b style="color:${pnl >= 0 ? '#7fba7f' : '#e07070'}">${pnl >= 0 ? '+' : ''}$${pnl.toLocaleString()}</b>`;
+    `Net: <b style="color:${pnl >= 0 ? '#7fba7f' : '#e07070'}">${pnl >= 0 ? '+' : ''}$${pnl.toLocaleString()}</b><br>` +
+    `<span title="Hands you folded that would have beaten at least one opponent" style="opacity:0.85">🤦 Fold Regrets: <b>${stats.foldedToWorse}</b></span>&nbsp;&nbsp;` +
+    `<span title="Times you won with high card only, all opponents folded" style="opacity:0.85">🎭 Bluffs: <b>${stats.successfulBluffs}</b></span>`;
 
   // Show "New Game" only in solo — multiplayer players should return to lobby
   EL['gameover-btn-newgame'].style.display = isSolo ? 'inline-block' : 'none';
@@ -1846,7 +1903,8 @@ function showGameOver(winnerPlayer) {
 function newGame() {
   document.getElementById('bust-overlay').style.display='none';
   EL['gameover-overlay'].style.display = 'none';
-  stats={hands:0,wins:0,biggest:0,startStack:STARTING_STACK};
+  stats={hands:0,wins:0,biggest:0,startStack:STARTING_STACK,foldedToWorse:0,successfulBluffs:0};
+  foldSnapshot = null;
   dealerIdx=0; handInProgress=false; communityCards=[]; pot=0; currentBet=0; playersToAct=[];
   initPlayers();
   renderAllCards(false); updateUI(); updateControls();
@@ -2394,7 +2452,8 @@ function goToMainMenu() {
   isHost = false; isSolo = false; humanSeats = [];
   MAX_SEATS = 4; disabledAISeats = new Set();
   setSeatVisibility();
-  stats = { hands:0, wins:0, biggest:0, startStack:STARTING_STACK };
+  stats = { hands:0, wins:0, biggest:0, startStack:STARTING_STACK, foldedToWorse:0, successfulBluffs:0 };
+  foldSnapshot = null;
   // Reset crypto state
   chatAESKey = null; chatHMACKey = null;
   chatSeq = 0; chatIVCounter = 0; seenSeqs = {}; verifyKeyCache = {};
