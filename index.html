@@ -1971,6 +1971,7 @@ function newGame() {
   foldSnapshot = null;
   dealerIdx=0; handInProgress=false; communityCards=[]; pot=0; currentBet=0; playersToAct=[];
   initPlayers();
+  if (isHost) buildDifficultyPanel(); // rebuild so eliminated AIs are restored
   renderAllCards(false); updateUI(); updateControls();
   setMessage('New game! Press Deal to start.');
   if (isHost) broadcastState();
