@@ -1,2586 +1,631 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Texas Hold'em — Multiplayer</title>
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.2/peerjs.min.js"></script>
-<style>
-  :root {
-    --felt: #1a4a2e; --felt-light: #1f5535; --felt-dark: #122e1e;
-    --gold: #c9a84c; --gold-light: #e8c96a; --gold-dark: #8a6b2a;
-    --cream: #f5ead0; --card-bg: #fdf6e3; --red: #c0392b; --black: #1a1a1a;
-  }
-  * { margin:0; padding:0; box-sizing:border-box; }
-  body {
-    background: radial-gradient(ellipse at center, #0d1f15 0%, #060e0a 100%);
-    font-family: 'Crimson Text', serif;
-    min-height: 700px;
-    width: 100%;
-    overflow-x: hidden;
-    overflow-y: auto;
-    display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
-    padding-top: 20px;
-    color: var(--cream);
-  }
-
-  /* ── LOBBY ── */
-  #lobby {
-    background: linear-gradient(135deg,#0d1f15,#060e0a);
-    border: 2px solid var(--gold-dark);
-    border-radius: 16px; padding: 40px 50px; text-align: center;
-    box-shadow: 0 0 60px rgba(201,168,76,0.15); max-width: 480px; width: 90%;
-  }
-  #lobby h1 {
-    font-family: 'Playfair Display', serif; font-size: 2rem;
-    color: var(--gold-light); margin-bottom: 6px; letter-spacing: 3px;
-  }
-  #lobby .subtitle { font-size: 0.85rem; color: rgba(245,234,208,0.5); margin-bottom: 30px; letter-spacing: 2px; }
-  .lobby-section { margin-bottom: 22px; }
-  .lobby-section h3 { font-family:'Playfair Display',serif; font-size:0.8rem; color:var(--gold); letter-spacing:2px; text-transform:uppercase; margin-bottom:10px; }
-  .lobby-input {
-    background: rgba(255,255,255,0.06); border: 1px solid rgba(201,168,76,0.4);
-    border-radius:6px; color:var(--cream); font-family:'Crimson Text',serif;
-    font-size:1rem; padding:8px 14px; width:100%; text-align:center;
-  }
-  .lobby-input:focus { outline:none; border-color:var(--gold); }
-  .lobby-input::placeholder { color: rgba(245,234,208,0.3); }
-  .lobby-divider { border: none; border-top:1px solid rgba(201,168,76,0.15); margin:20px 0; }
-  .btn {
-    font-family:'Playfair Display',serif; font-size:0.82rem; letter-spacing:1px;
-    border:none; border-radius:6px; padding:10px 20px; cursor:pointer;
-    transition:all 0.15s; font-weight:700;
-  }
-  .btn:hover { transform:translateY(-1px); }
-  .btn:active { transform:translateY(0); }
-  .btn:disabled { opacity:0.3; cursor:not-allowed; transform:none; }
-  .btn-gold { background:var(--gold); color:#000; border:1px solid var(--gold-light); }
-  .btn-gold:hover:not(:disabled) { background:var(--gold-light); }
-  .btn-blue { background:#1a3a6e; color:#9bbfff; border:1px solid #2a5aae; }
-  .btn-blue:hover:not(:disabled) { background:#2a5aae; }
-  .btn-fold { background:#7f1c1c; color:#fff; border:1px solid #a82c2c; }
-  .btn-fold:hover:not(:disabled) { background:#a82c2c; }
-  .btn-check { background:#1a4a2e; color:var(--gold-light); border:1px solid var(--gold-dark); }
-  .btn-check:hover:not(:disabled) { background:#1f5535; }
-  .btn-call { background:#1a3a6e; color:#9bbfff; border:1px solid #2a5aae; }
-  .btn-call:hover:not(:disabled) { background:#2a5aae; }
-  .btn-raise { background:var(--gold-dark); color:#000; border:1px solid var(--gold); }
-  .btn-raise:hover:not(:disabled) { background:var(--gold); }
-  .btn-allin { background:#8b0000; color:#ffd0d0; border:1px solid #cc0000; }
-  .btn-allin:hover:not(:disabled) { background:#cc0000; }
-  .btn-deal { background:var(--gold); color:#000; border:1px solid var(--gold-light); font-size:0.85rem; padding:10px 24px; }
-  .btn-deal:hover:not(:disabled) { background:var(--gold-light); }
-
-  #room-code-display {
-    font-family:'Playfair Display',serif; font-size:2.5rem; color:var(--gold-light);
-    letter-spacing:8px; text-shadow:0 0 20px rgba(201,168,76,0.4);
-    background:rgba(0,0,0,0.3); border:1px solid rgba(201,168,76,0.3);
-    border-radius:8px; padding:12px 24px; display:inline-block; margin:10px 0;
-    cursor:pointer; transition:all 0.2s;
-  }
-  #room-code-display:hover { background:rgba(201,168,76,0.1); }
-  .copy-hint { font-size:0.7rem; color:rgba(245,234,208,0.4); margin-top:4px; }
-
-  #waiting-players { margin-top:14px; }
-  .waiting-slot {
-    display:flex; align-items:center; gap:8px; padding:6px 12px;
-    background:rgba(0,0,0,0.3); border-radius:6px; margin-bottom:6px;
-    font-size:0.82rem;
-  }
-  .slot-dot { width:8px; height:8px; border-radius:50%; background:#555; }
-  .slot-dot.connected { background:#27ae60; box-shadow:0 0 6px #27ae60; }
-  .slot-dot.ai { background:#8a6b2a; }
-  .slot-label { color:var(--cream); }
-  .slot-type { color:rgba(245,234,208,0.4); font-size:0.72rem; margin-left:auto; }
-
-  #lobby-status { font-size:0.78rem; color:rgba(245,234,208,0.5); margin-top:10px; min-height:18px; }
-  #lobby-error { font-size:0.78rem; color:#e07070; margin-top:6px; min-height:18px; }
-  .ai-seat-row { display:flex; align-items:center; justify-content:space-between; padding:4px 0; border-bottom:1px solid rgba(201,168,76,0.08); gap:8px; }
-  .ai-seat-row:last-child { border-bottom:none; }
-  .ai-seat-info { display:flex; flex-direction:column; }
-  .ai-seat-name { font-size:0.78rem; color:var(--cream); }
-  .ai-seat-style { font-size:0.62rem; color:rgba(201,168,76,0.5); font-style:italic; }
-  .ai-toggle { position:relative; width:36px; height:20px; flex-shrink:0; }
-  .ai-toggle input { opacity:0; width:0; height:0; }
-  .ai-toggle-slider {
-    position:absolute; inset:0; border-radius:10px; cursor:pointer;
-    background:rgba(255,255,255,0.12); transition:background 0.2s;
-  }
-  .ai-toggle-slider:before {
-    content:''; position:absolute; width:14px; height:14px; left:3px; bottom:3px;
-    border-radius:50%; background:rgba(245,234,208,0.5); transition:transform 0.2s;
-  }
-  .ai-toggle input:checked + .ai-toggle-slider { background:var(--gold-dark); }
-  .ai-toggle input:checked + .ai-toggle-slider:before { transform:translateX(16px); background:var(--cream); }
-
-  /* ── GAME WRAPPER ── */
-  #game-wrapper {
-    width:100%; min-height:780px; position:relative; overflow:visible;
-    display:none; align-items:center; justify-content:center;
-  }
-  #game-wrapper.active { display:flex; }
-
-  /* ── TABLE SCENE (scales on mobile) ── */
-  #table-scene {
-    position:relative;
-    width:1040px;
-    height:780px;
-    flex-shrink:0;
-    transform-origin:top center;
-  }
-
-  /* ── TABLE ── */
-  #table {
-    width:680px; height:400px;
-    background:radial-gradient(ellipse at center,var(--felt-light) 0%,var(--felt) 50%,var(--felt-dark) 100%);
-    border-radius:50%; border:12px solid #5a3e1b;
-    box-shadow:0 0 0 4px #8a6b2a,0 0 0 8px #3d2a0e,0 30px 80px rgba(0,0,0,0.8),inset 0 0 60px rgba(0,0,0,0.3);
-    position:relative; overflow:visible;
-    display:flex; align-items:center; justify-content:center; flex-direction:column;
-    margin: 190px 180px;
-  }
-  #table::before {
-    content:''; position:absolute; inset:0; border-radius:50%;
-    background-image:radial-gradient(circle at 50% 50%,rgba(255,255,255,0.02) 1px,transparent 1px);
-    background-size:30px 30px; pointer-events:none;
-  }
-
-  /* ── COMMUNITY ── */
-  #community-area { display:flex; flex-direction:column; align-items:center; gap:8px; z-index:10; }
-  #pot-display { font-family:'Playfair Display',serif; font-size:1.1rem; color:var(--gold-light); text-shadow:0 0 10px rgba(201,168,76,0.5); letter-spacing:2px; margin-bottom:4px; }
-  #community-cards { display:flex; gap:6px; }
-  #phase-label { font-size:0.75rem; color:rgba(245,234,208,0.5); letter-spacing:3px; text-transform:uppercase; margin-top:4px; }
-
-  /* ── CARDS ── */
-  .card {
-    width:58px; height:84px; background:var(--card-bg); border-radius:6px;
-    border:1px solid #d4c5a0; display:flex; align-items:center; justify-content:center;
-    flex-direction:column; font-family:'Playfair Display',serif; font-size:1.1rem; font-weight:700;
-    box-shadow:0 3px 10px rgba(0,0,0,0.4),inset 0 1px 0 rgba(255,255,255,0.8);
-    position:relative; flex-shrink:0; animation:dealCard 0.3s ease-out;
-  }
-  @keyframes dealCard { from{transform:scale(0.5) rotateY(90deg);opacity:0} to{transform:scale(1) rotateY(0);opacity:1} }
-  .card.red { color:var(--red); } .card.black { color:var(--black); }
-  .card .corner-tl { position:absolute; top:4px; left:5px; text-align:left; line-height:1.1; font-size:0.65rem; }
-  .card .corner-br { position:absolute; bottom:4px; right:5px; text-align:right; line-height:1.1; font-size:0.65rem; transform:rotate(180deg); }
-  .card-back {
-    width:58px; height:84px; background:linear-gradient(135deg,#1a3a6e 0%,#0d1f4a 100%);
-    border-radius:6px; border:1px solid #2a4a8e; box-shadow:0 3px 10px rgba(0,0,0,0.4);
-    display:flex; align-items:center; justify-content:center; flex-shrink:0; position:relative; overflow:hidden;
-  }
-  .card-back::before {
-    content:''; position:absolute; inset:4px; border:1px solid rgba(255,255,255,0.15); border-radius:4px;
-    background:repeating-linear-gradient(45deg,transparent,transparent 4px,rgba(255,255,255,0.04) 4px,rgba(255,255,255,0.04) 8px);
-  }
-  .card-back::after { content:'♠'; color:rgba(255,255,255,0.15); font-size:1.5rem; }
-  .card-placeholder { width:58px; height:84px; border-radius:6px; border:2px dashed rgba(245,234,208,0.15); flex-shrink:0; }
-
-  /* ── SEATS — 4-seat default layout ── */
-  .seat { position:absolute; display:flex; flex-direction:column; align-items:center; gap:6px; }
-  #seat-0 { bottom:-130px; left:50%; transform:translateX(-50%); }
-  #seat-1 { left:-180px; top:50%; transform:translateY(-50%); }
-  #seat-2 { top:-140px; left:50%; transform:translateX(-50%); }
-  #seat-3 { right:-180px; top:50%; transform:translateY(-50%); }
-
-  /* ── SEATS — 6-seat layout override (applied via JS on #table) ── */
-  #table.six-seats #seat-0 { bottom:-130px; left:50%; transform:translateX(-50%); }
-  #table.six-seats #seat-1 { bottom:-90px;  left:-165px; transform:none; top:auto; right:auto; }
-  #table.six-seats #seat-2 { top:-130px;   left:-165px; transform:none; bottom:auto; right:auto; }
-  #table.six-seats #seat-3 { top:-140px;   left:50%; transform:translateX(-50%); right:auto; bottom:auto; }
-  #table.six-seats #seat-4 { top:-130px;   right:-165px; transform:none; left:auto; bottom:auto; }
-  #table.six-seats #seat-5 { bottom:-90px; right:-165px; transform:none; left:auto; top:auto; }
-
-  .player-info {
-    background:rgba(0,0,0,0.65); border:1px solid rgba(201,168,76,0.3);
-    border-radius:8px; padding:6px 12px; text-align:center; min-width:130px;
-    backdrop-filter:blur(4px); transition:border-color 0.3s,box-shadow 0.3s; position:relative;
-  }
-  .player-info.active { border-color:var(--gold); box-shadow:0 0 15px rgba(201,168,76,0.4); }
-  .player-info.folded { opacity:0.45; }
-  .player-info.is-you { border-color:rgba(100,200,100,0.5); }
-  .player-info.dealer::after {
-    content:'D'; position:absolute; top:-10px; right:-10px;
-    background:var(--gold); color:#000; font-size:0.65rem; font-weight:bold;
-    padding:2px 7px; border-radius:10px; letter-spacing:1px;
-  }
-  .player-info.small-blind::before {
-    content:'SB'; position:absolute; top:-10px; left:-10px;
-    background:#2980b9; color:#fff; font-size:0.55rem; font-weight:bold;
-    padding:2px 5px; border-radius:10px; letter-spacing:1px;
-  }
-  .player-info.big-blind::before {
-    content:'BB'; position:absolute; top:-10px; left:-10px;
-    background:#c0392b; color:#fff; font-size:0.55rem; font-weight:bold;
-    padding:2px 5px; border-radius:10px; letter-spacing:1px;
-  }
-  .player-name { font-family:'Playfair Display',serif; font-size:0.85rem; color:var(--gold-light); letter-spacing:1px; white-space:nowrap; }
-  .player-stack { font-size:0.8rem; color:var(--cream); font-weight:600; }
-  .player-bet { font-size:0.7rem; color:var(--gold); min-height:14px; }
-  .player-action-label { font-size:0.65rem; color:#7fba7f; text-transform:uppercase; letter-spacing:2px; min-height:12px; }
-  .player-cards { display:flex; gap:4px; }
-
-  /* ── CONTROLS ── */
-  #controls {
-    position:absolute; bottom:10px; left:50%; transform:translateX(-50%);
-    display:flex; align-items:center; gap:10px;
-    background:rgba(0,0,0,0.75); border:1px solid rgba(201,168,76,0.3);
-    border-radius:12px; padding:14px 20px; backdrop-filter:blur(8px); z-index:100;
-  }
-  #raise-area { display:flex; align-items:center; gap:6px; }
-  #raise-input {
-    width:80px; background:rgba(255,255,255,0.08); border:1px solid rgba(201,168,76,0.4);
-    border-radius:4px; color:var(--cream); font-family:'Crimson Text',serif;
-    font-size:0.85rem; padding:6px 8px; text-align:center;
-  }
-  #raise-input:focus { outline:none; border-color:var(--gold); }
-  .raise-label { font-size:0.7rem; color:rgba(245,234,208,0.5); }
-
-  /* ── PANELS ── */
-  #stats-panel {
-    position:absolute; top:10px; left:10px; background:rgba(0,0,0,0.75);
-    border:1px solid rgba(201,168,76,0.3); border-radius:10px; padding:12px 16px;
-    backdrop-filter:blur(8px); z-index:100; min-width:150px;
-  }
-  #stats-panel h3 { font-family:'Playfair Display',serif; font-size:0.75rem; color:var(--gold); letter-spacing:2px; text-transform:uppercase; margin-bottom:8px; text-align:center; }
-  .stat-row { display:flex; justify-content:space-between; font-size:0.72rem; color:var(--cream); margin-bottom:4px; gap:10px; }
-  .stat-val { color:var(--gold-light); font-weight:600; }
-
-  #difficulty-panel {
-    position:absolute; top:10px; right:10px; background:rgba(0,0,0,0.80);
-    border:1px solid rgba(201,168,76,0.3); border-radius:10px; padding:12px 14px;
-    backdrop-filter:blur(8px); z-index:100; min-width:210px; max-width:230px;
-  }
-  #difficulty-panel h3 { font-family:'Playfair Display',serif; font-size:0.75rem; color:var(--gold); letter-spacing:2px; text-transform:uppercase; margin-bottom:10px; text-align:center; }
-  .diff-row { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; gap:8px; }
-  .diff-name-col { display:flex; flex-direction:column; gap:1px; flex:1; min-width:0; }
-  .diff-name { font-size:0.75rem; color:var(--cream); white-space:nowrap; }
-  .diff-style { font-size:0.60rem; color:rgba(201,168,76,0.55); white-space:nowrap; font-style:italic; }
-  .diff-select {
-    background:rgba(255,255,255,0.06); border:1px solid rgba(201,168,76,0.3);
-    border-radius:4px; color:var(--cream); font-family:'Crimson Text',serif;
-    font-size:0.75rem; padding:3px 6px; cursor:pointer; width:70px; flex-shrink:0;
-  }
-
-  /* ── MESSAGE ── */
-  #message-bar {
-    position:absolute; top:10px; left:50%; transform:translateX(-50%);
-    background:rgba(0,0,0,0.8); border:1px solid rgba(201,168,76,0.4);
-    border-radius:8px; padding:10px 24px; font-family:'Playfair Display',serif;
-    font-size:0.9rem; color:var(--gold-light); letter-spacing:1px; text-align:center;
-    z-index:200; backdrop-filter:blur(8px); max-width:420px; white-space:nowrap;
-  }
-
-  /* ── OVERLAYS ── */
-  #winner-overlay {
-    position:absolute; inset:0; background:rgba(0,0,0,0.85);
-    display:none; align-items:center; justify-content:center; z-index:300; flex-direction:column; gap:20px;
-  }
-  #winner-overlay.show { display:flex; }
-  #winner-box {
-    background:linear-gradient(135deg,#1a2e1a,#0d1f0d); border:2px solid var(--gold);
-    border-radius:16px; padding:40px 60px; text-align:center;
-    box-shadow:0 0 60px rgba(201,168,76,0.3); max-width:480px;
-  }
-  #winner-title { font-family:'Playfair Display',serif; font-size:2rem; color:var(--gold-light); margin-bottom:8px; }
-  #winner-hand { font-size:1rem; color:var(--cream); margin-bottom:16px; opacity:0.8; }
-  #winner-cards { display:flex; gap:6px; justify-content:center; margin-bottom:20px; flex-wrap:wrap; }
-  #winner-amount { font-family:'Playfair Display',serif; font-size:1.4rem; color:#7fba7f; margin-bottom:24px; }
-
-  #bust-overlay {
-    display:none; position:absolute; inset:0; background:rgba(0,0,0,0.9);
-    align-items:center; justify-content:center; z-index:400; flex-direction:column; gap:20px;
-  }
-  #bust-box {
-    background:linear-gradient(135deg,#2e1a1a,#1a0d0d); border:2px solid #c0392b;
-    border-radius:16px; padding:40px 60px; text-align:center;
-    box-shadow:0 0 60px rgba(192,57,43,0.4); max-width:420px;
-  }
-
-  /* ── NETWORK BADGE ── */
-  #net-badge {
-    position:absolute; bottom:70px; right:10px;
-    background:rgba(0,0,0,0.7); border:1px solid rgba(201,168,76,0.2);
-    border-radius:8px; padding:6px 12px; font-size:0.7rem; z-index:100;
-  }
-  #net-status { color:#27ae60; }
-  #room-badge {
-    position:absolute; bottom:100px; right:10px;
-    background:rgba(0,0,0,0.7); border:1px solid rgba(201,168,76,0.2);
-    border-radius:8px; padding:6px 12px; font-size:0.7rem; z-index:100;
-    color:var(--gold-light); letter-spacing:2px; cursor:pointer;
-  }
-
-
-  /* ── CHAT ── */
-  #chat-panel {
-    position:absolute; bottom:70px; left:10px;
-    width:240px; background:rgba(0,0,0,0.82);
-    border:1px solid rgba(201,168,76,0.25); border-radius:10px;
-    backdrop-filter:blur(8px); z-index:100;
-    display:none; flex-direction:column; overflow:hidden;
-    box-shadow:0 4px 20px rgba(0,0,0,0.5);
-  }
-  #chat-header {
-    display:flex; align-items:center; justify-content:space-between;
-    padding:8px 12px; border-bottom:1px solid rgba(201,168,76,0.15);
-    cursor:pointer; user-select:none;
-  }
-  #chat-header-title {
-    font-family:'Playfair Display',serif; font-size:0.72rem;
-    color:var(--gold); letter-spacing:2px; text-transform:uppercase;
-  }
-  #chat-unread {
-    background:#c0392b; color:#fff; font-size:0.6rem; font-weight:bold;
-    padding:1px 6px; border-radius:10px; display:none;
-  }
-  #chat-toggle-icon { font-size:0.7rem; color:rgba(245,234,208,0.4); }
-  #chat-body { display:flex; flex-direction:column; }
-  #chat-messages {
-    height:160px; overflow-y:auto; padding:8px 10px;
-    display:flex; flex-direction:column; gap:4px;
-    scrollbar-width:thin; scrollbar-color:rgba(201,168,76,0.2) transparent;
-  }
-  #chat-messages::-webkit-scrollbar { width:4px; }
-  #chat-messages::-webkit-scrollbar-thumb { background:rgba(201,168,76,0.2); border-radius:2px; }
-  .chat-msg { font-size:0.75rem; line-height:1.4; word-break:break-word; }
-  .chat-msg .chat-sender { color:var(--gold); font-weight:600; margin-right:4px; }
-  .chat-msg.me .chat-sender { color:#7fba7f; }
-  .chat-msg.system { color:rgba(245,234,208,0.35); font-style:italic; font-size:0.7rem; }
-  #chat-input-row {
-    display:flex; gap:0; border-top:1px solid rgba(201,168,76,0.15);
-  }
-  #chat-input {
-    flex:1; background:transparent; border:none;
-    color:var(--cream); font-family:'Crimson Text',serif; font-size:0.82rem;
-    padding:7px 10px; outline:none;
-  }
-  #chat-input::placeholder { color:rgba(245,234,208,0.25); }
-  #chat-send {
-    background:transparent; border:none; border-left:1px solid rgba(201,168,76,0.15);
-    color:var(--gold); font-size:0.9rem; padding:0 10px; cursor:pointer;
-    transition:background 0.15s;
-  }
-  #chat-send:hover { background:rgba(201,168,76,0.08); }
-  #chat-panel.collapsed #chat-body { display:none; }
-
-  /* ── MAIN MENU BUTTON ── */
-  #btn-main-menu {
-    position:absolute; top:10px; left:50%; transform:translateX(-50%) translateX(200px);
-    z-index:150;
-  }
-
-  /* ═══════════════════════════════════════════════════════════
-     MOBILE RESPONSIVE
-     ═══════════════════════════════════════════════════════════ */
-  @media (max-width: 860px) {
-
-    body { padding-top: 0; justify-content: flex-start; overflow-y: auto; min-height: 100vh; }
-
-    #game-wrapper {
-      flex-direction: column !important;
-      align-items: center !important;
-      justify-content: flex-start !important;
-      min-height: 100vh;
-      padding-bottom: 16px;
-    }
-
-    /* Table scene: shrink to fit viewport */
-    #table-scene {
-      /* width/height/transform set by JS */
-      flex-shrink: 0;
-    }
-
-    /* All absolute panels → relative flow */
-    #stats-panel {
-      position: relative !important;
-      top: auto; left: auto;
-      order: 2;
-      display: flex !important;
-      flex-direction: row;
-      flex-wrap: wrap;
-      align-items: center;
-      justify-content: center;
-      gap: 8px 16px;
-      width: 92%;
-      min-width: 0;
-      padding: 8px 12px;
-      margin-top: 6px;
-    }
-    #stats-panel h3 { display: none; }
-    .stat-row { margin-bottom: 0; font-size: 0.7rem; }
-
-    #message-bar {
-      position: relative !important;
-      top: auto; left: auto; transform: none;
-      order: 1;
-      width: 92%;
-      font-size: 0.78rem;
-      padding: 8px 14px;
-      white-space: normal;
-      text-align: center;
-      margin-top: 8px;
-    }
-
-    #table-scene { order: 3; }
-
-    #difficulty-panel {
-      position: relative !important;
-      top: auto; right: auto;
-      order: 5;
-      width: 92%;
-      min-width: 0; max-width: 100%;
-      margin: 6px auto 0 auto;
-    }
-    .diff-row { flex-wrap: nowrap; }
-    .diff-select { width: 80px; }
-
-    #controls {
-      position: relative !important;
-      bottom: auto; left: auto; transform: none;
-      order: 6;
-      width: 92%;
-      flex-wrap: wrap;
-      justify-content: center;
-      gap: 6px;
-      padding: 10px 12px;
-      border-radius: 10px;
-      margin: 4px auto 0 auto;
-    }
-    #raise-area {
-      width: 100%;
-      justify-content: center;
-      order: 99;
-    }
-    .btn { font-size: 0.78rem; padding: 9px 14px; }
-
-    #chat-panel {
-      position: relative !important;
-      bottom: auto; left: auto;
-      order: 7;
-      width: 92%;
-      margin: 6px auto 0 auto;
-    }
-    #chat-messages { height: 100px; }
-
-    #net-badge, #room-badge {
-      position: relative !important;
-      bottom: auto; right: auto;
-      order: 8;
-      display: inline-block;
-      margin: 4px 4px 0 4px;
-    }
-
-    #btn-main-menu {
-      position: absolute !important;
-      top: 8px;
-      right: 8px;
-      left: auto;
-      transform: none;
-      order: 0;
-      z-index: 200;
-    }
-
-    /* Overlays: fixed so they cover the full mobile screen */
-    #winner-overlay, #bust-overlay {
-      position: fixed !important;
-    }
-
-    #winner-box, #bust-box {
-      padding: 28px 24px;
-      margin: 0 16px;
-      width: calc(100% - 32px);
-      max-width: 360px;
-    }
-    #winner-title { font-size: 1.5rem; }
-    #winner-cards { flex-wrap: wrap; justify-content: center; }
-  }
-
-  @media (max-width: 480px) {
-    #controls { gap: 5px; padding: 8px; }
-    .btn { font-size: 0.72rem; padding: 8px 10px; }
-    #raise-input { width: 65px; }
-    .raise-label { display: none; }
-  }
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Rogue Warriors Digital</title>
+  <link rel="stylesheet" href="css/game.css">
 </head>
 <body>
 
-<!-- ══════════════ LOBBY ══════════════ -->
-<div id="lobby">
-  <h1>♠ Hold'em ♠</h1>
-  <p class="subtitle">TEXAS HOLD'EM — MULTIPLAYER</p>
+<!-- ─── Global notification toast ────────────────────────────── -->
+<div id="notif" class="notif"></div>
 
-  <div class="lobby-section">
-    <h3>Your Name</h3>
-    <input class="lobby-input" id="player-name-input" placeholder="Enter your name" maxlength="12">
-  </div>
+<!-- ─── Tooltip ──────────────────────────────────────────────── -->
+<div id="tooltip"></div>
 
-  <hr class="lobby-divider">
-
-  <div class="lobby-section" id="create-section">
-    <h3>Host a Table</h3>
-    <button class="btn btn-gold" onclick="hostGame()" id="btn-host">Create Room</button>
-    <div id="host-room-area" style="display:none;margin-top:14px;">
-      <div>Room Code:</div>
-      <div id="room-code-display" onclick="copyRoomCode()" title="Click to copy">????</div>
-      <div class="copy-hint">Click to copy · Share with friends</div>
-      <div id="waiting-players"></div>
-      <div id="ai-seat-config" style="margin-top:12px;text-align:left;">
-        <div style="font-size:0.72rem;color:var(--gold);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;">AI Seats</div>
-        <div id="ai-seat-rows"></div>
-        <div style="font-size:0.65rem;color:rgba(245,234,208,0.35);margin-top:4px;">Disabled seats stay empty</div>
-      </div>
-      <div style="margin-top:14px;">
-        <button class="btn btn-gold" id="btn-start-game" onclick="startMultiplayerGame()" disabled>Start Game</button>
-        <div style="font-size:0.7rem;color:rgba(245,234,208,0.4);margin-top:6px;">Need at least 2 players</div>
-      </div>
+<!-- ────────────────────────────────────────────────────────────
+     SCREEN: MAIN MENU
+──────────────────────────────────────────────────────────────── -->
+<div id="screen-menu" class="screen active">
+  <div class="menu-container">
+    <div class="logo">
+      <h1>⚔ Rogue Warriors</h1>
+      <p class="subtitle">Modern Tactical Skirmish — Digital Edition</p>
     </div>
+    <div class="menu-buttons">
+      <button class="btn-primary" onclick="UI.startMode('ai')">⚔️ &nbsp;vs AI Opponent</button>
+      <button class="btn-primary" onclick="UI.startMode('local')">🎯 &nbsp;Local 2-Player</button>
+      <button class="btn-primary" onclick="UI.startMode('online')">🌐 &nbsp;Online Multiplayer</button>
+      <button class="btn-primary" onclick="UI.showScenarioEditor()">🗺️ &nbsp;Scenario Editor</button>
+      <button class="btn-secondary" onclick="UI.showHowToPlay()">📖 &nbsp;How to Play</button>
+    </div>
+    <p style="color:var(--text2); font-size:12px; margin-top:8px;">
+      Based on <em>Rogue Warriors: A Modern Warfare Skirmish Game</em>
+    </p>
   </div>
-
-  <hr class="lobby-divider">
-
-  <div class="lobby-section">
-    <h3>Join a Table</h3>
-    <input class="lobby-input" id="room-code-input" placeholder="Enter room code" maxlength="6" style="margin-bottom:10px;text-transform:uppercase;letter-spacing:4px;">
-    <br>
-    <button class="btn btn-blue" onclick="joinGame()" id="btn-join">Join Room</button>
-  </div>
-
-  <div id="lobby-status"></div>
-  <div id="lobby-error"></div>
-
-  <hr class="lobby-divider">
-  <div style="font-size:0.72rem;color:rgba(245,234,208,0.3);">
-    Or play solo vs AI below ↓
-  </div>
-  <button class="btn btn-check" style="margin-top:10px;" onclick="startSoloGame()">Play Solo vs AI</button>
 </div>
 
-<!-- ══════════════ GAME ══════════════ -->
-<div id="game-wrapper">
+<!-- ────────────────────────────────────────────────────────────
+     SCREEN: SCENARIO EDITOR
+──────────────────────────────────────────────────────────────── -->
+<div id="screen-scenario" class="screen" style="justify-content:center; align-items:flex-start; padding:20px; overflow:auto;">
+  <div style="width:min(960px,100%); display:flex; flex-direction:column; gap:16px;">
+    <div style="display:flex; align-items:center; gap:12px;">
+      <button class="btn-back" onclick="UI.showScreen('screen-menu')">← Back</button>
+      <h2>🗺️ Scenario Editor</h2>
+    </div>
 
-  <!-- Table scene (scaled on mobile) -->
-  <div id="table-scene">
-    <div id="table">
-      <div id="community-area">
-        <div id="pot-display">POT: $0</div>
-        <div id="community-cards">
-          <div class="card-placeholder"></div><div class="card-placeholder"></div>
-          <div class="card-placeholder"></div><div class="card-placeholder"></div>
-          <div class="card-placeholder"></div>
+    <div class="sc-inner-grid" style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+
+      <!-- LEFT: Map + settings -->
+      <div style="display:flex; flex-direction:column; gap:12px;">
+        <div class="control-group">
+          <div class="control-label">Scenario Name</div>
+          <input id="sc-name" type="text" class="code-input" placeholder="My Scenario" style="width:100%; box-sizing:border-box;">
         </div>
-        <div id="phase-label">WAITING</div>
-        <button class="btn btn-deal" id="btn-host-deal" onclick="hostDeal()" style="display:none; margin-top:6px;">Deal Hand</button>
+
+        <div class="control-group">
+          <div class="control-label">Game Mode</div>
+          <div class="btn-group" style="flex-wrap:wrap;">
+            <button class="gamemode-btn active" data-sc-mode="elimination" onclick="UI.scSetMode('elimination')">💀 Elimination</button>
+            <button class="gamemode-btn" data-sc-mode="ctf"          onclick="UI.scSetMode('ctf')">🚩 CTF</button>
+            <button class="gamemode-btn" data-sc-mode="bomb"         onclick="UI.scSetMode('bomb')">💣 Bomb</button>
+            <button class="gamemode-btn" data-sc-mode="vip"          onclick="UI.scSetMode('vip')">👑 VIP</button>
+          </div>
+        </div>
+
+        <div class="control-group">
+          <div class="control-label">Terrain Theme</div>
+          <div class="btn-group">
+            <button class="theme-btn active" data-sc-theme="urban"  onclick="UI.scSetTheme('urban')">🏙️ Urban</button>
+            <button class="theme-btn" data-sc-theme="desert"        onclick="UI.scSetTheme('desert')">🏜️ Desert</button>
+            <button class="theme-btn" data-sc-theme="arctic"        onclick="UI.scSetTheme('arctic')">❄️ Arctic</button>
+            <button class="theme-btn" data-sc-theme="forest"        onclick="UI.scSetTheme('forest')">🌲 Forest</button>
+          </div>
+        </div>
+
+        <div class="control-group">
+          <div class="control-label">⭐ Point Budget per Team</div>
+          <div class="btn-group" style="flex-wrap:wrap;">
+            <button class="density-btn"        data-sc-budget="5"  onclick="UI.scSetPointBudget(5)">5 pts</button>
+            <button class="density-btn"        data-sc-budget="8"  onclick="UI.scSetPointBudget(8)">8 pts</button>
+            <button class="density-btn active" data-sc-budget="10" onclick="UI.scSetPointBudget(10)">10 pts</button>
+            <button class="density-btn"        data-sc-budget="12" onclick="UI.scSetPointBudget(12)">12 pts</button>
+            <button class="density-btn"        data-sc-budget="15" onclick="UI.scSetPointBudget(15)">15 pts</button>
+            <button class="density-btn"        data-sc-budget="20" onclick="UI.scSetPointBudget(20)">20 pts</button>
+          </div>
+          <div id="sc-budget-info" style="font-size:11px; color:var(--text2); margin-top:4px;">Each team gets 10 points to build their squad.</div>
+        </div>
+
+        <div class="control-group">
+          <div class="control-label">Map</div>
+          <div class="btn-group">
+            <button class="reroll-btn" onclick="UI.scRerollMap()">🎲 Random Map</button>
+            <button class="reroll-btn" onclick="UI.scOpenMapEditor()">✏️ Edit Map</button>
+          </div>
+        </div>
+
+        <div class="control-group">
+          <div class="panel-title" style="margin-bottom:6px;">Objectives</div>
+          <div id="sc-obj-panel" style="display:flex;flex-direction:column;gap:6px;">
+            <span style="color:var(--text2);font-size:12px;">Select a game mode to place objectives.</span>
+          </div>
+        </div>
+
+        <div class="control-group">
+          <div class="panel-title" style="margin-bottom:4px;">Map Preview <span style="font-size:11px;color:var(--text2);">(click to place objective)</span></div>
+          <div style="overflow:auto; max-width:100%;">
+            <canvas id="sc-preview" style="border:2px solid var(--border); border-radius:6px; display:block; cursor:crosshair;"></canvas>
+          </div>
+        </div>
       </div>
-      <div class="seat" id="seat-0">
-        <div class="player-cards" id="cards-0"></div>
-        <div class="player-info" id="info-0">
-          <div class="player-name" id="pname-0">You</div>
-          <div class="player-stack" id="stack-0">$10,000</div>
-          <div class="player-bet" id="bet-0"></div>
-          <div class="player-action-label" id="action-label-0"></div>
+
+      <!-- RIGHT: Squads + scenario type + actions -->
+      <div style="display:flex; flex-direction:column; gap:12px;">
+
+        <!-- Alpha Team -->
+        <div class="control-group">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+            <div class="control-label" style="color:#3a9eff; margin-bottom:0;">🔵 Alpha Team</div>
+            <span id="sc-budget-0" style="font-size:12px; color:var(--text2); font-weight:600; background:var(--bg3); padding:2px 8px; border-radius:10px;">0/10 pts</span>
+          </div>
+          <div id="sc-squad-0" style="display:flex; flex-wrap:wrap; gap:6px; min-height:40px; padding:6px; background:var(--bg3); border-radius:6px;"></div>
+          <div style="display:flex; flex-wrap:wrap; gap:4px; margin-top:6px;">
+            <button class="density-btn" onclick="UI.scAddUnit(0,'rifleman')">🔫 Rifleman <span style="opacity:.6;font-size:10px;">1pt</span></button>
+            <button class="density-btn" onclick="UI.scAddUnit(0,'sniper')">🎯 Sniper <span style="opacity:.6;font-size:10px;">2pt</span></button>
+            <button class="density-btn" onclick="UI.scAddUnit(0,'medic')">💉 Medic <span style="opacity:.6;font-size:10px;">2pt</span></button>
+            <button class="density-btn" onclick="UI.scAddUnit(0,'grenadier')">💣 Grenadier <span style="opacity:.6;font-size:10px;">2pt</span></button>
+            <button class="density-btn" onclick="UI.scAddUnit(0,'leader')">⭐ Leader <span style="opacity:.6;font-size:10px;">2pt</span></button>
+            <button class="density-btn" onclick="UI.scAddUnit(0,'scout')">🏹 Scout <span style="opacity:.6;font-size:10px;">2pt</span></button>
+          </div>
         </div>
-      </div>
-      <div class="seat" id="seat-1">
-        <div class="player-info" id="info-1">
-          <div class="player-name" id="pname-1">Seat 2</div>
-          <div class="player-stack" id="stack-1">$10,000</div>
-          <div class="player-bet" id="bet-1"></div>
-          <div class="player-action-label" id="action-label-1"></div>
+
+        <!-- Bravo Team -->
+        <div class="control-group">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+            <div class="control-label" style="color:#ff4545; margin-bottom:0;">🔴 Bravo Team</div>
+            <span id="sc-budget-1" style="font-size:12px; color:var(--text2); font-weight:600; background:var(--bg3); padding:2px 8px; border-radius:10px;">0/10 pts</span>
+          </div>
+          <div id="sc-squad-1" style="display:flex; flex-wrap:wrap; gap:6px; min-height:40px; padding:6px; background:var(--bg3); border-radius:6px;"></div>
+          <div style="display:flex; flex-wrap:wrap; gap:4px; margin-top:6px;">
+            <button class="density-btn" onclick="UI.scAddUnit(1,'rifleman')">🔫 Rifleman <span style="opacity:.6;font-size:10px;">1pt</span></button>
+            <button class="density-btn" onclick="UI.scAddUnit(1,'sniper')">🎯 Sniper <span style="opacity:.6;font-size:10px;">2pt</span></button>
+            <button class="density-btn" onclick="UI.scAddUnit(1,'medic')">💉 Medic <span style="opacity:.6;font-size:10px;">2pt</span></button>
+            <button class="density-btn" onclick="UI.scAddUnit(1,'grenadier')">💣 Grenadier <span style="opacity:.6;font-size:10px;">2pt</span></button>
+            <button class="density-btn" onclick="UI.scAddUnit(1,'leader')">⭐ Leader <span style="opacity:.6;font-size:10px;">2pt</span></button>
+            <button class="density-btn" onclick="UI.scAddUnit(1,'scout')">🏹 Scout <span style="opacity:.6;font-size:10px;">2pt</span></button>
+          </div>
         </div>
-        <div class="player-cards" id="cards-1"></div>
-      </div>
-      <div class="seat" id="seat-2">
-        <div class="player-cards" id="cards-2"></div>
-        <div class="player-info" id="info-2">
-          <div class="player-name" id="pname-2">Seat 3</div>
-          <div class="player-stack" id="stack-2">$10,000</div>
-          <div class="player-bet" id="bet-2"></div>
-          <div class="player-action-label" id="action-label-2"></div>
+
+        <!-- Scenario Type selector -->
+        <div class="control-group">
+          <div class="control-label">Scenario Type</div>
+          <div class="btn-group" style="flex-wrap:wrap;">
+            <button class="density-btn active" data-sc-type="single" onclick="UI.scSetScenarioType('single')" title="Play against the AI">🤖 vs AI</button>
+            <button class="density-btn" data-sc-type="local"  onclick="UI.scSetScenarioType('local')"  title="Two players on the same screen">🎯 Local 2-Player</button>
+            <button class="density-btn" data-sc-type="online" onclick="UI.scSetScenarioType('online')" title="Play online with a friend">🌐 Online</button>
+          </div>
+          <div id="sc-type-hint" style="font-size:11px; color:var(--text2); margin-top:4px;">Squads are pre-set — no army builder needed.</div>
         </div>
-      </div>
-      <div class="seat" id="seat-3">
-        <div class="player-info" id="info-3">
-          <div class="player-name" id="pname-3">Seat 4</div>
-          <div class="player-stack" id="stack-3">$10,000</div>
-          <div class="player-bet" id="bet-3"></div>
-          <div class="player-action-label" id="action-label-3"></div>
+
+        <!-- Actions -->
+        <div class="control-group">
+          <div class="control-label">Actions</div>
+          <div style="display:flex; flex-direction:column; gap:8px;">
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+              <button id="sc-play-ai"     class="btn btn-green" onclick="UI.scPlayScenario()">⚔️ Play vs AI</button>
+              <button id="sc-play-local"  class="btn btn-green" onclick="UI.scPlayLocal()"    style="display:none;">🎯 Play Local 2P</button>
+              <button id="sc-play-online" class="btn btn-blue"  onclick="UI.scPlayOnline()"   style="display:none;">🌐 Go to Online Lobby</button>
+              <button class="btn btn-blue" onclick="UI.scSave()">💾 Save to File</button>
+            </div>
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+              <label class="btn btn-ghost" style="cursor:pointer;">
+                📂 Load from File
+                <input type="file" accept=".json" style="display:none;" onchange="UI.scLoad(event)">
+              </label>
+            </div>
+            <div id="sc-status" style="font-size:12px; color:var(--text2); min-height:16px;"></div>
+          </div>
         </div>
-        <div class="player-cards" id="cards-3"></div>
-      </div>
-      <div class="seat" id="seat-4" style="display:none;">
-        <div class="player-info" id="info-4">
-          <div class="player-name" id="pname-4">Seat 5</div>
-          <div class="player-stack" id="stack-4">$10,000</div>
-          <div class="player-bet" id="bet-4"></div>
-          <div class="player-action-label" id="action-label-4"></div>
-        </div>
-        <div class="player-cards" id="cards-4"></div>
-      </div>
-      <div class="seat" id="seat-5" style="display:none;">
-        <div class="player-info" id="info-5">
-          <div class="player-name" id="pname-5">Seat 6</div>
-          <div class="player-stack" id="stack-5">$10,000</div>
-          <div class="player-bet" id="bet-5"></div>
-          <div class="player-action-label" id="action-label-5"></div>
-        </div>
-        <div class="player-cards" id="cards-5"></div>
       </div>
     </div>
-  </div><!-- /#table-scene -->
-
-  <!-- Stats -->
-  <div id="stats-panel" style="display:none;">
-    <h3>Stats</h3>
-    <div class="stat-row"><span>Hands</span><span class="stat-val" id="stat-hands">0</span></div>
-    <div class="stat-row"><span>Wins</span><span class="stat-val" id="stat-wins">0</span></div>
-    <div class="stat-row"><span>Best Pot</span><span class="stat-val" id="stat-biggest">$0</span></div>
-    <div class="stat-row"><span>Net P&amp;L</span><span class="stat-val" id="stat-pnl">$0</span></div>
-
   </div>
+</div>
 
-  <!-- Difficulty -->
-  <div id="difficulty-panel" style="display:none;">
-    <h3>AI Difficulty</h3>
-    <div id="diff-rows"></div>
-  </div>
-
-  <!-- Message -->
-  <div id="message-bar" style="display:none;">Welcome!</div>
-
-  <!-- Net badge -->
-  <div id="room-badge" style="display:none;" onclick="copyRoomCode()">ROOM: ????</div>
-  <div id="net-badge" style="display:none;"><span id="net-status">●</span> <span id="net-label">Connected</span></div>
-
-
-  <!-- Controls -->
-  <div id="controls" style="display:none;">
-    <button class="btn btn-fold" id="btn-fold" onclick="playerAction('fold')" disabled>Fold</button>
-    <button class="btn btn-check" id="btn-check" onclick="playerAction('check')" disabled>Check</button>
-    <button class="btn btn-call" id="btn-call" onclick="playerAction('call')" disabled>Call $0</button>
-    <div id="raise-area">
-      <span class="raise-label">Raise:</span>
-      <input type="number" id="raise-input" value="200" min="0" step="50">
-      <button class="btn btn-raise" id="btn-raise" onclick="playerAction('raise')" disabled>Raise</button>
+<!-- ────────────────────────────────────────────────────────────
+     SCREEN: HOW TO PLAY
+──────────────────────────────────────────────────────────────── -->
+<div id="screen-howtoplay" class="screen">
+  <div class="rules-container" style="padding-top:40px; max-height:100vh; overflow:auto;">
+    <div style="display:flex; align-items:center; gap:16px;">
+      <button class="btn-back" onclick="UI.showScreen('screen-menu')">← Back</button>
+      <h2>📖 How to Play</h2>
     </div>
-    <button class="btn btn-allin" id="btn-allin" onclick="playerAction('allin')" disabled>All-In</button>
-  </div>
-
-  <!-- Winner Overlay -->
-  <div id="winner-overlay">
-    <div id="winner-box">
-      <div id="winner-title">🏆 Winner!</div>
-      <div id="winner-hand"></div>
-      <div id="winner-cards"></div>
-      <div id="winner-amount"></div>
-      <button class="btn btn-deal" id="btn-next-hand" onclick="nextHand()">Next Hand</button>
+    <div class="rules-content">
+      <div class="rules-section">
+        <h3>🎯 Objective</h3>
+        <p>Eliminate all enemy units, or complete the game-mode objective (CTF, Bomb, VIP Escort). Each Warrior has <strong>1 Heart</strong> (HP). Lose all Hearts = eliminated.</p>
+      </div>
+      <div class="rules-section">
+        <h3>⚡ Turn Structure — Alternate Activations</h3>
+        <ul>
+          <li>Players alternate activating <strong>one unit at a time</strong>.</li>
+          <li>Each activated unit gets <strong>2 Actions</strong>.</li>
+          <li>Once all units have activated, a new Round begins. Pinned status resolves at start of activation.</li>
+        </ul>
+      </div>
+      <div class="rules-section">
+        <h3>👣 Actions</h3>
+        <ul>
+          <li><strong>Move (1 action):</strong> Move up to your MA (Movement Allowance = 5" for most warriors). Click a blue tile.</li>
+          <li><strong>Run (1 action):</strong> After moving, roll 1D6 for extra tiles. Cannot shoot this activation.</li>
+          <li><strong>Shoot (1 action):</strong> Fire at an enemy in range &amp; line of sight. Hits on <strong>4+</strong>. Click a red enemy.</li>
+          <li><strong>Aim (1 action):</strong> +1 to next Shooting Attack roll (effectively hits on 3+).</li>
+          <li><strong>Light Cover (1 action):</strong> −1 to incoming attack rolls until next activation.</li>
+          <li><strong>Heavy Cover (1 action):</strong> −2 to incoming attack rolls on a cover tile.</li>
+          <li><strong>Charge (2 actions):</strong> Move into base contact and make a melee attack.</li>
+          <li><strong>Reload (1 action):</strong> Clear a Weapon Jam or reload a Sniper Rifle.</li>
+        </ul>
+      </div>
+      <div class="rules-section">
+        <h3>🎲 Shooting Attack Sequence</h3>
+        <ul>
+          <li>Roll the weapon's <strong>Attack Dice</strong>. Each die <strong>hits on 4+</strong>.</li>
+          <li><strong>Modifiers:</strong> −1 Light Cover (need 5+) · −2 Heavy Cover (need 6+) · +1 Aim or half-range (need 3+) · SMG: −1 to all rolls (need 5+).</li>
+          <li>For each Hit: target rolls <strong>1D6 Armour Save</strong> + weapon AP modifier:</li>
+          <li>🟥 <strong>1–2:</strong> 1 Damage (lose 1 Heart) · 🟪 <strong>3–4:</strong> Pinned (can't move next activation) · 🟩 <strong>5–6:</strong> Saved.</li>
+        </ul>
+      </div>
+      <div class="rules-section">
+        <h3>🔫 Weapons</h3>
+        <ul>
+          <li><strong>Pistol/Revolver:</strong> 6", 2D6, AP 0. Dual-wield = 4D6.</li>
+          <li><strong>Shotgun:</strong> 8", 3D6, AP −1. Hit = knock target back 1".</li>
+          <li><strong>Submachine Gun:</strong> 12", 5D6, AP 0. −1 to Shooting Attack rolls.</li>
+          <li><strong>Assault Rifle:</strong> 18", 3D6, AP 0. Three 6s = bonus AP −1. Three 1s = Weapon Jam.</li>
+          <li><strong>Light Machine Gun:</strong> 3–24", 4D6, AP 0. Natural 6 = Auto-Pin. −1 MA. Scout cannot use.</li>
+          <li><strong>Sniper Rifle:</strong> 6–36", 1D6, AP −1. Hit = 1D3 bonus damage. Must Reload after each shot.</li>
+          <li><strong>Frag Grenade:</strong> Thrown 6". Hits everyone within 3" (ignores cover). AP −2. Roll of 1 = dud check.</li>
+        </ul>
+      </div>
+      <div class="rules-section">
+        <h3>🦸 Specialists</h3>
+        <ul>
+          <li><strong>Rifleman:</strong> Assault Rifle. Reliable at all ranges. Cheap backbone unit.</li>
+          <li><strong>Sniper:</strong> Sniper Rifle. Long-range damage dealer. Overwatch ability.</li>
+          <li><strong>Medic:</strong> SMG. Heal ability — revive or un-pin an adjacent ally once per game.</li>
+          <li><strong>Grenadier:</strong> Frag Grenade. Blast hits everyone in 3" AoE, ignores cover.</li>
+          <li><strong>Leader:</strong> Assault Rifle. Command Aura — allies within 3 tiles reroll one failed attack die.</li>
+          <li><strong>Scout:</strong> SMG, MA 6". Stealth — enemies need natural 6 to hit while in cover.</li>
+        </ul>
+      </div>
+      <div class="rules-section">
+        <h3>🌐 Multiplayer</h3>
+        <p>Use <strong>Online Multiplayer</strong> to play with a friend. Player 1 hosts and shares their Room Code. Player 2 enters it to connect. No account needed — peer-to-peer via browser.</p>
+      </div>
     </div>
   </div>
+</div>
 
-  <!-- Bust Overlay -->
-  <div id="bust-overlay">
-    <div id="bust-box">
-      <div style="font-family:'Playfair Display',serif;font-size:2.2rem;color:#e07070;margin-bottom:10px;">💸 Busted!</div>
-      <div style="font-size:1rem;color:var(--cream);opacity:0.75;margin-bottom:8px;">You've run out of chips.</div>
-      <div id="bust-stats" style="font-size:0.85rem;color:var(--gold-light);margin-bottom:28px;line-height:1.8;"></div>
-      <button class="btn btn-deal" onclick="newGame()">New Game</button>
+<!-- ────────────────────────────────────────────────────────────
+     SCREEN: ARMY BUILDER
+──────────────────────────────────────────────────────────────── -->
+<div id="screen-army" class="screen">
+  <input type="hidden" id="army-current-player" value="0">
+  <div class="army-container" style="width:min(920px,96%); margin:auto; padding: 20px 0;">
+    <div class="army-header">
+      <div>
+        <h2 id="army-player-title">🔵 Alpha Team — Build Your Squad</h2>
+        <p style="font-size:12px; color:var(--text2); margin-top:4px;">
+          Min 4 units · Max 8 units · Must include 1 Leader
+        </p>
+      </div>
+      <div class="budget-display">
+        Points remaining: <strong id="army-budget-left">10</strong> / 10
+      </div>
+    </div>
+
+    <!-- Current squad -->
+    <div class="panel-title">YOUR SQUAD</div>
+    <div id="army-squad-list"></div>
+
+    <!-- Unit catalogue -->
+    <div class="panel-title" style="margin-top:12px;">UNIT CATALOGUE — Click to add</div>
+    <div class="unit-catalogue" id="unit-catalogue"></div>
+
+    <!-- Actions -->
+    <div class="army-actions" style="margin-top:12px;">
+      <button class="btn btn-ghost" onclick="UI.showScreen('screen-menu')">← Back</button>
+      <button id="army-confirm-btn" class="btn btn-green" onclick="UI.confirmArmy(parseInt(document.getElementById('army-current-player').value))">
+        Confirm Squad →
+      </button>
     </div>
   </div>
+</div>
 
-  <!-- Game-Over Overlay (solo win / multiplayer game end) -->
-  <div id="gameover-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.82);z-index:120;display:none;align-items:center;justify-content:center;">
-    <div id="gameover-box" style="background:linear-gradient(135deg,#0d1f15,#060e0a);border:2px solid var(--gold-dark);border-radius:16px;padding:40px 50px;text-align:center;box-shadow:0 0 60px rgba(201,168,76,0.25);max-width:400px;width:90%;">
-      <div id="gameover-title" style="font-family:'Playfair Display',serif;font-size:2.2rem;color:var(--gold-light);margin-bottom:10px;"></div>
-      <div id="gameover-subtitle" style="font-size:1rem;color:var(--cream);opacity:0.75;margin-bottom:8px;"></div>
-      <div id="gameover-stats" style="font-size:0.85rem;color:var(--gold-light);margin-bottom:28px;line-height:1.8;"></div>
-      <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
-        <button id="gameover-btn-newgame" class="btn btn-deal" onclick="newGame()" style="display:none;">New Game</button>
-        <button class="btn" style="background:rgba(0,0,0,0.7);border:1px solid rgba(201,168,76,0.3);color:var(--gold-light);font-size:0.82rem;padding:10px 20px;" onclick="goToMainMenu()">⬅ Main Menu</button>
+<!-- ────────────────────────────────────────────────────────────
+     SCREEN: BATTLEFIELD SETUP
+──────────────────────────────────────────────────────────────── -->
+<div id="screen-battlefield" class="screen" style="justify-content:center; align-items:center; padding:20px;">
+  <div style="display:flex; flex-direction:column; gap:16px; width:min(860px,96%); max-height:100vh; overflow:auto; padding:8px 0;">
+    <h2>🗺️ Battlefield Setup</h2>
+
+    <div class="battlefield-container">
+      <!-- Controls -->
+      <div class="bf-controls">
+
+        <div class="control-group">
+          <div class="control-label">Game Mode</div>
+          <div class="btn-group" style="flex-wrap:wrap;">
+            <button class="gamemode-btn active" data-gamemode="elimination" onclick="UI.setGameMode('elimination')" title="Eliminate all enemies">💀 Elimination</button>
+            <button class="gamemode-btn" data-gamemode="ctf"       onclick="UI.setGameMode('ctf')"       title="Capture the flag">🚩 Capture the Flag</button>
+            <button class="gamemode-btn" data-gamemode="bomb"      onclick="UI.setGameMode('bomb')"      title="Plant / defuse the bomb">💣 Plant the Bomb</button>
+            <button class="gamemode-btn" data-gamemode="vip"       onclick="UI.setGameMode('vip')"       title="Escort or eliminate the VIP">👑 VIP Escort</button>
+          </div>
+        </div>
+
+        <div class="control-group">
+          <div class="control-label">Terrain Theme</div>
+          <div class="btn-group">
+            <button class="theme-btn" data-theme="urban"   onclick="UI.setTheme('urban')">🏙️ Urban</button>
+            <button class="theme-btn" data-theme="desert"  onclick="UI.setTheme('desert')">🏜️ Desert</button>
+            <button class="theme-btn" data-theme="arctic"  onclick="UI.setTheme('arctic')">❄️ Arctic</button>
+            <button class="theme-btn" data-theme="forest"  onclick="UI.setTheme('forest')">🌲 Forest</button>
+          </div>
+        </div>
+
+        <div class="control-group">
+          <div class="control-label">Building Density</div>
+          <div class="btn-group">
+            <button class="density-btn" data-density="light"  onclick="UI.setDensity('light')">Light</button>
+            <button class="density-btn" data-density="medium" onclick="UI.setDensity('medium')">Medium</button>
+            <button class="density-btn" data-density="heavy"  onclick="UI.setDensity('heavy')">Heavy</button>
+          </div>
+        </div>
+
+        <div class="control-group" id="fuse-control" style="display:none;">
+          <div class="control-label">💣 Bomb Fuse Length (rounds)</div>
+          <div class="btn-group">
+            <button class="density-btn" data-fuse="4"  onclick="UI.setBombFuse(4)">4</button>
+            <button class="density-btn" data-fuse="6"  onclick="UI.setBombFuse(6)">6</button>
+            <button class="density-btn active" data-fuse="8"  onclick="UI.setBombFuse(8)">8</button>
+            <button class="density-btn" data-fuse="10" onclick="UI.setBombFuse(10)">10</button>
+            <button class="density-btn" data-fuse="12" onclick="UI.setBombFuse(12)">12</button>
+          </div>
+          <div class="control-label" style="margin-top:10px;">⚔️ Attacking Team (plants bomb)</div>
+          <div class="btn-group">
+            <button class="density-btn active" data-attacker="0" onclick="UI.setBombAttacker(0)">🔵 Alpha</button>
+            <button class="density-btn"        data-attacker="1" onclick="UI.setBombAttacker(1)">🔴 Bravo</button>
+          </div>
+        </div>
+
+        <div class="control-group">
+          <div class="control-label">Map</div>
+          <div class="btn-group">
+            <button class="reroll-btn" onclick="UI.rerollBattlefield()">🎲 New Random Map</button>
+            <button class="reroll-btn" onclick="UI.openMapEditor()" title="Draw on the map to customise it">✏️ Edit Map</button>
+          </div>
+        </div>
+
+        <div style="display:flex; gap:10px; margin-top:4px; flex-wrap:wrap;">
+          <button class="btn btn-ghost" onclick="UI.showScreen('screen-army')">← Back</button>
+          <button class="btn btn-green" onclick="UI.startGame()">⚔️ Deploy &amp; Fight!</button>
+        </div>
+      </div>
+
+      <!-- Preview -->
+      <div class="bf-preview">
+        <div class="panel-title">MAP PREVIEW</div>
+        <canvas id="preview-canvas" style="border:2px solid var(--border); border-radius:6px;"></canvas>
+        <p style="font-size:11px; color:var(--text2); margin-top:6px;" id="deploy-hint">
+          🔵 Alpha deploys left &nbsp;|&nbsp; 🔴 Bravo deploys right
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ────────────────────────────────────────────────────────────
+     MAP EDITOR OVERLAY
+──────────────────────────────────────────────────────────────── -->
+<div id="map-editor-overlay" style="display:none; position:fixed; inset:0; z-index:400; background:rgba(0,0,0,0.85); backdrop-filter:blur(4px); align-items:center; justify-content:center; flex-direction:column; gap:12px;">
+  <div style="display:flex; align-items:center; gap:16px; flex-wrap:wrap; justify-content:center;">
+    <strong style="font-size:16px; letter-spacing:2px;">✏️ MAP EDITOR</strong>
+
+    <div style="display:flex; gap:6px; flex-wrap:wrap;">
+      <button class="editor-brush-btn active" data-brush="open"     onclick="UI.setEditorBrush('open')"     title="Erase to open ground">🟫 Open</button>
+      <button class="editor-brush-btn"        data-brush="building" onclick="UI.setEditorBrush('building')" title="Paint solid building">🏢 Building</button>
+      <button class="editor-brush-btn"        data-brush="cover"    onclick="UI.setEditorBrush('cover')"    title="Paint low cover">🧱 Cover</button>
+      <button class="editor-brush-btn"        data-brush="rubble"   onclick="UI.setEditorBrush('rubble')"   title="Paint rubble">🪨 Rubble</button>
+    </div>
+
+    <button class="btn btn-ghost" style="font-size:12px;" onclick="UI.closeMapEditor()">✅ Done Editing</button>
+  </div>
+
+  <p style="font-size:11px; color:var(--text2);">Click or drag to paint. Deploy zones (left/right edges) are locked.</p>
+
+  <div style="overflow:auto; max-width:96vw; max-height:78vh; border:2px solid var(--border); border-radius:8px;">
+    <canvas id="editor-canvas" style="display:block; cursor:crosshair;"></canvas>
+  </div>
+</div>
+
+<!-- ────────────────────────────────────────────────────────────
+     SCREEN: MULTIPLAYER LOBBY
+──────────────────────────────────────────────────────────────── -->
+<div id="screen-lobby" class="screen" style="justify-content:center; align-items:center;">
+  <div class="lobby-container">
+    <div style="display:flex; align-items:center; gap:12px;">
+      <button class="btn-back" onclick="UI.showScreen('screen-menu')">← Back</button>
+      <h2>🌐 Online Multiplayer</h2>
+    </div>
+    <p style="font-size:13px; color:var(--text2);">Play with friends in your browser — no account needed.</p>
+
+    <!-- Host -->
+    <div class="lobby-card">
+      <h3>🏠 Host a Game</h3>
+      <p style="font-size:12px; color:var(--text2);">Create a room and share the code with your friend.</p>
+      <button class="btn btn-blue" onclick="UI.hostGame()">Create Room</button>
+      <div id="room-code-display" style="display:none;"></div>
+    </div>
+
+    <!-- Join -->
+    <div class="lobby-card">
+      <h3>🔗 Join a Game</h3>
+      <p style="font-size:12px; color:var(--text2);">Enter the room code your friend shared.</p>
+      <input type="text" id="join-code-input" class="code-input" placeholder="ENTER CODE" spellcheck="false">
+      <button class="btn btn-blue" onclick="UI.joinGame()">Join Room</button>
+    </div>
+
+    <!-- Pending custom scenario (shown when queuing an online scenario from the editor) -->
+    <div id="lobby-scenario-card" class="lobby-card" style="display:none; border:2px solid var(--accent); background:rgba(58,158,255,0.06);">
+      <h3>🗺️ Custom Scenario Ready</h3>
+      <p id="lobby-scenario-label" style="font-size:12px; color:var(--text2);"></p>
+      <p style="font-size:11px; color:var(--text2); margin-top:4px;">Host a room above — your opponent just needs to join with the room code.</p>
+      <button class="btn btn-ghost" style="font-size:12px; margin-top:6px;" onclick="UI.scClearOnlinePending()">✕ Cancel Scenario</button>
+    </div>
+
+
+    <div id="lobby-status" style="text-align:center; font-size:13px; color:var(--text2);"></div>
+  </div>
+</div>
+
+<!-- ────────────────────────────────────────────────────────────
+     SCREEN: GAME
+──────────────────────────────────────────────────────────────── -->
+<div id="screen-game" class="screen">
+  <!-- Top bar: turn banner + menu button -->
+  <div class="top-bar">
+    <button class="game-menu-btn" onclick="UI.openGameMenu()" title="Menu">☰ Menu</button>
+    <div id="turn-banner" class="turn-banner">Rogue Warriors</div>
+    <div class="top-bar-spacer"></div>
+  </div>
+
+  <div id="game-layout">
+    <!-- LEFT PANEL: Actions + Deploy -->
+    <div class="side-panel" id="left-panel">
+      <!-- Deploy phase panel (shown during deploy) -->
+      <div class="panel-section" id="deploy-section" style="display:none; flex:1; min-height:0; flex-direction:column;">
+        <div class="panel-title" id="deploy-panel-title">PLACE YOUR UNITS</div>
+        <div class="deploy-instructions" id="deploy-instructions">
+          Click a unit below, then click a highlighted tile on the map to place it.
+        </div>
+        <div id="deploy-panel"></div>
+        <button class="deploy-done-btn" id="deploy-done-btn" onclick="UI.finishDeployment()" disabled>
+          ✅ Done Deploying
+        </button>
+      </div>
+      <!-- Normal actions panel (shown during playing) -->
+      <div class="panel-section" id="actions-section" style="flex-shrink:0;">
+        <div class="panel-title">ACTIONS</div>
+        <div id="action-buttons">
+          <div class="hint-text">← Select a game mode to start</div>
+        </div>
+      </div>
+      <div class="panel-section" id="stats-section" style="flex:1; min-height:0; display:flex; flex-direction:column;">
+        <div class="panel-title">UNIT STATS</div>
+        <div id="unit-stats-panel" style="padding:8px; font-size:12px; color:var(--text2); flex:1; overflow:auto;">
+          <p>Click a unit to see its stats</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- CENTER: Canvas -->
+    <div id="game-center">
+      <div id="battlefield-wrapper">
+        <canvas id="battlefield"></canvas>
+      </div>
+      <!-- Zoom controls — visible on mobile, hidden on desktop via CSS -->
+      <div id="map-zoom-controls">
+        <button class="map-zoom-btn" onclick="UI.mapZoom(1)" title="Zoom in">+</button>
+        <button class="map-zoom-btn" onclick="UI.mapZoom(-1)" title="Zoom out">−</button>
+      </div>
+    </div>
+
+    <!-- RIGHT PANEL: Teams + Dice + Log -->
+    <div class="side-panel" id="right-panel">
+      <!-- Team 0 -->
+      <div class="panel-section">
+        <div class="panel-title" style="color:#3a9eff;">🔵 ALPHA TEAM</div>
+        <div id="team-panel-0" class="team-panel-inner"></div>
+      </div>
+      <!-- Team 1 -->
+      <div class="panel-section">
+        <div class="panel-title" style="color:#ff4545;">🔴 BRAVO TEAM</div>
+        <div id="team-panel-1" class="team-panel-inner"></div>
+      </div>
+      <!-- Dice results -->
+      <div class="panel-section" style="flex:1; min-height:0; display:flex; flex-direction:column;">
+        <div class="panel-title">🎲 DICE / LOG</div>
+        <div id="dice-panel" style="overflow-y:auto; max-height:160px; flex-shrink:0;"></div>
+        <div style="flex:1; overflow:auto; min-height:0;">
+          <div id="combat-log"></div>
+        </div>
       </div>
     </div>
   </div>
 
-  <!-- Main Menu Button -->
-  <div id="btn-main-menu" style="display:none;">
-    <button class="btn" style="background:rgba(0,0,0,0.7);border:1px solid rgba(201,168,76,0.3);color:var(--gold-light);font-size:0.72rem;padding:6px 14px;" onclick="goToMainMenu()">⬅ Menu</button>
+  <!-- Mobile HUD (hidden on desktop via CSS) -->
+  <div id="mobile-hud">
+    <div id="mobile-hud-tabs">
+      <button class="mob-tab active" onclick="UI.mobTab('actions')" id="mob-tab-actions">⚔️ Actions</button>
+      <button class="mob-tab"        onclick="UI.mobTab('teams')"   id="mob-tab-teams">👥 Teams</button>
+      <button class="mob-tab"        onclick="UI.mobTab('log')"     id="mob-tab-log">🎲 Log</button>
+    </div>
+    <div id="mobile-hud-content"></div>
   </div>
 
-</div><!-- /#game-wrapper -->
+  <!-- In-Game Menu Overlay -->
+  <div id="game-menu-overlay">
+    <div class="game-menu-card">
+      <div class="gm-title">⚔ Game Menu</div>
+      <div class="gm-round" id="game-menu-round"></div>
+      <div class="gm-buttons">
+        <button class="btn btn-ghost gm-btn" onclick="UI.closeGameMenu()">▶ Resume Game</button>
+        <button class="btn btn-blue  gm-btn" onclick="UI.newGameFromMenu()">🔄 New Game (same mode)</button>
+        <button class="btn btn-gold  gm-btn" onclick="UI.mainMenuFromMenu()">🏠 Main Menu</button>
+      </div>
+    </div>
+  </div>
 
+  <!-- Game Over Overlay -->
+  <div id="gameover-overlay">
+    <div class="go-card">
+      <div style="font-size:48px;">🏆</div>
+      <div id="go-title">Victory!</div>
+      <div id="go-subtitle"></div>
+      <div id="go-stats" style="font-size:13px; color:var(--text2);"></div>
+      <div style="display:flex; gap:12px; justify-content:center; margin-top:16px;">
+        <button class="btn btn-gold" onclick="UI.playAgain()">Play Again</button>
+        <button class="btn btn-ghost" onclick="UI.showScreen('screen-menu')">Main Menu</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── Scripts ──────────────────────────────────────────────── -->
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script src="js/config.js"></script>
+<script src="js/engine.js"></script>
+<script src="js/renderer.js"></script>
+<script src="js/ai.js"></script>
+<script src="js/multiplayer.js"></script>
+<script src="js/ui.js"></script>
 <script>
-// ═══════════════════════════════════════════════════════════
-//  CONSTANTS
-// ═══════════════════════════════════════════════════════════
-const SUITS = ['♠','♥','♦','♣'];
-const RANKS = ['2','3','4','5','6','7','8','9','10','J','Q','K','A'];
-const RANK_VAL = {'2':2,'3':3,'4':4,'5':5,'6':6,'7':7,'8':8,'9':9,'10':10,'J':11,'Q':12,'K':13,'A':14};
-const HAND_NAMES = ['High Card','One Pair','Two Pair','Three of a Kind','Straight','Flush','Full House','Four of a Kind','Straight Flush','Royal Flush'];
-const BIG_BLIND = 100, SMALL_BLIND = 50;
-const STARTING_STACK = 10000;
-const CHAT_MAX_LEN = 150;   // F-05: single source of truth for chat message length
+// ──────────────────────────────────────────────
+//  BOOT — build unit catalogue on page load
+// ──────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  // Populate unit catalogue
+  const cat = document.getElementById('unit-catalogue');
+  const icons = { rifleman:'🔫', sniper:'🎯', medic:'💉', grenadier:'💣', leader:'⭐', scout:'🏹' };
+  const statLabels = { move:'Mv', skill:'Hit', range:'Rng', dice:'Dice', defense:'Def' };
 
-// ═══════════════════════════════════════════════════════════
-//  DOM CACHE — query once, never again
-//  All getElementById/querySelector calls during gameplay route through here.
-// ═══════════════════════════════════════════════════════════
-const EL = {};
-function buildDOMCache() {
-  const ids = [
-    'lobby','lobby-status','lobby-error','host-room-area','room-code-display',
-    'waiting-players','ai-seat-rows','btn-host','btn-join','btn-start-game',
-    'room-code-input','player-name-input',
-    'game-wrapper','table','table-scene',
-    'pot-display','phase-label','community-cards',
-    'message-bar','controls','stats-panel','difficulty-panel','diff-rows',
-    'btn-host-deal','btn-next-hand','btn-main-menu',
-    'btn-fold','btn-check','btn-call','btn-raise','btn-allin','raise-input','raise-area',
-    'stat-hands','stat-wins','stat-biggest','stat-pnl','stat-fold-worse','stat-bluffs',
-    'room-badge','net-badge',
-    'winner-overlay','winner-title','winner-hand','winner-amount','winner-cards',
-    'bust-overlay','bust-stats',
-    'gameover-overlay','gameover-title','gameover-subtitle','gameover-stats','gameover-btn-newgame',
-    'chat-panel','chat-messages','chat-input','chat-send','chat-header-title',
-    'chat-unread','chat-toggle-icon',
-  ];
-  ids.forEach(id => { EL[id] = document.getElementById(id); });
-  // Per-seat elements — cached as arrays indexed by seat
-  EL.pname = []; EL.stack = []; EL.bet = []; EL.info = [];
-  EL.cards = []; EL.actionLabel = [];
-  for (let i = 0; i < 6; i++) {
-    EL.pname[i]       = document.getElementById(`pname-${i}`);
-    EL.stack[i]       = document.getElementById(`stack-${i}`);
-    EL.bet[i]         = document.getElementById(`bet-${i}`);
-    EL.info[i]        = document.getElementById(`info-${i}`);
-    EL.cards[i]       = document.getElementById(`cards-${i}`);
-    EL.actionLabel[i] = document.getElementById(`action-label-${i}`);
-  }
-}
-let peer = null;           // PeerJS instance
-let isHost = false;
-let isSolo = false;
-let MAX_SEATS = 4;          // 4 for solo, 6 for multiplayer
-let disabledAISeats = new Set(); // AI seats turned off by host in lobby
-// sessionSecret: Uint8Array(32), set by host in hostGame() or by client via applySessionSecret()
-let myName = 'You';
-let mySeatIdx = 0;         // which seat index (0-3) am I sitting in
-let myRoomCode = '';
-let hostConn = null;       // client -> host connection
-let clientConns = [];      // host -> clients connections array [{conn, seatIdx, name}]
-let humanSeats = [];       // seat indices occupied by humans [0..3]
-let _ecdhPeerPublicKey = null;  // F-01: client stores the host's imported ECDH public key
-let sessionSecret = null;       // Uint8Array(32) — derived via ECDH, never transmitted in plaintext
-
-// ═══════════════════════════════════════════════════════════
-//  GAME STATE (authoritative on host / solo)
-// ═══════════════════════════════════════════════════════════
-let deck = [];
-let players = [];          // [{id,name,stack,hand,bet,folded,allIn,isAI}]
-let communityCards = [];
-let pot = 0;
-let currentBet = 0;
-let phase = 'waiting';
-let currentPlayerIdx = 0;
-let dealerIdx = 0;
-let smallBlindIdx, bigBlindIdx;
-let handInProgress = false;
-let playersToAct = [];
-let stats = { hands:0, wins:0, biggest:0, startStack:STARTING_STACK,
-              foldedToWorse:0, successfulBluffs:0 };
-
-// Per-hand tracking for post-game analysis
-// foldSnapshot: recorded when the player folds — preserves their hole cards + community at fold time
-let foldSnapshot = null;   // { hand: [...], community: [...], phase } | null
-let npcThinkTimeout = null;
-let runOutTimeout = null;
-
-// ═══════════════════════════════════════════════════════════
-//  LOBBY
-// ═══════════════════════════════════════════════════════════
-function getPlayerName() {
-  const n = document.getElementById('player-name-input').value.trim();
-  return n || 'Player';
-}
-
-function lobbyStatus(msg, isError=false) {
-  document.getElementById(isError ? 'lobby-error' : 'lobby-status').textContent = msg;
-  if (!isError) document.getElementById('lobby-error').textContent = '';
-}
-
-
-function joinGame() {
-  myName = getPlayerName();
-  const code = document.getElementById('room-code-input').value.trim().toUpperCase().replace(/[^A-Z0-9]/g,'');
-  if (!myName) { lobbyStatus('Please enter your name.', true); return; }
-  if (code.length < 6) { lobbyStatus('Enter a valid room code.', true); return; }
-  document.getElementById('btn-join').disabled = true;
-  connectWithCode(code);
-}
-
-function connectWithCode(code) {
-  myName = getPlayerName();
-  // F-08: defaults to peerjs.com public signaling server.
-  // For production, self-host: `npm install -g peer && peerjs --port 9000`
-  // then pass { host:'your-server', port:9000, path:'/' } as the second Peer() argument.
-  peer = new Peer(null, { debug: 0 });
-  peer.on('open', () => {
-    const hostPeerId = 'holdem-' + code;
-    const conn = peer.connect(hostPeerId, { reliable: true });
-    hostConn = conn;
-
-    conn.on('open', () => {
-      lobbyStatus('Connected! Waiting for host to start…');
-      conn.send({ type:'setName', name: myName });
-    });
-
-    conn.on('data', data => handleClientReceive(data));
-
-    conn.on('error', e => {
-      lobbyStatus('Could not connect. Check the room code.', true);
-      document.getElementById('btn-join').disabled = false;
-    });
-    conn.on('close', () => {
-      lobbyStatus('Disconnected from host.', true);
-    });
-  });
-  peer.on('error', e => {
-    lobbyStatus('Room not found. Check the code and try again.', true);
-    document.getElementById('btn-join').disabled = false;
-  });
-}
-
-function hostGame() {
-  myName = getPlayerName();
-  if (!myName) { lobbyStatus('Please enter your name.', true); return; }
-  document.getElementById('btn-host').disabled = true;
-  lobbyStatus('Creating room…');
-
-  // Use CSPRNG for room code - 5 alphanumeric chars = 60M+ combinations
-  const codeBytes = crypto.getRandomValues(new Uint8Array(6));
-  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no ambiguous chars (0/O, 1/I)
-  const code = Array.from(codeBytes).map(b => alphabet[b % alphabet.length]).join('');
-  myRoomCode = code;
-
-  // F-08: defaults to peerjs.com public signaling server.
-  // For production, self-host: `npm install -g peer && peerjs --port 9000`
-  // then pass { host:'your-server', port:9000, path:'/' } to the Peer() constructor below.
-  peer = new Peer('holdem-' + code, { debug: 0 });
-  peer.on('open', async id => {
-    isHost = true;
-    mySeatIdx = 0;
-    humanSeats = [0];
-    // F-01: generate the host's ECDH key pair; the raw session secret stays local
-    await generateECDHKeyPair();
-    sessionSecret = crypto.getRandomValues(new Uint8Array(32));
-    disabledAISeats = new Set();
-
-    document.getElementById('room-code-display').textContent = code;
-    document.getElementById('host-room-area').style.display = 'block';
-    document.getElementById('btn-host').style.display = 'none';
-    lobbyStatus('Room created! Share the code above.');
-    renderWaitingSlots();
-    renderAISeatConfig();
-
-    peer.on('connection', conn => {
-      conn.on('open', () => {
-        const takenSeats = humanSeats.slice();
-        let seatIdx = -1;
-        for (let i = 1; i <= 5; i++) {
-          if (!takenSeats.includes(i)) { seatIdx = i; break; }
-        }
-        if (seatIdx === -1) { conn.send({type:'full'}); return; }
-
-        conn._seatIdx = seatIdx;
-        conn._name = 'Player';
-        clientConns.push({ conn, seatIdx, name: 'Player' });
-        humanSeats.push(seatIdx);
-
-        conn.on('data', data => handleHostReceive(conn, data));
-        conn.on('close', () => {
-          const info = clientConns.find(c => c.conn === conn);
-          if (info) humanSeats = humanSeats.filter(s => s !== info.seatIdx);
-          clientConns = clientConns.filter(c => c.conn !== conn);
-          renderWaitingSlots();
-          renderAISeatConfig();
-          updateStartButton();
-        });
-
-        // F-01: send host's ECDH public key instead of raw session secret
-        exportPublicKey(_ecdhKeyPair.publicKey).then(hostPubKey => {
-          conn.send({ type:'welcome', seatIdx, roomCode: code, hostPublicKey: hostPubKey });
-        });
-        renderWaitingSlots();
-        renderAISeatConfig();
-        updateStartButton();
-      });
-    });
+  Object.entries(UNIT_DEFS).forEach(([key, def]) => {
+    const card = document.createElement('div');
+    card.className = 'unit-card';
+    card.onclick   = () => UI.addUnitToSquad(key);
+    card.innerHTML = `
+      <div class="uc-header">
+        <div class="uc-icon" style="background:${def.color}">${icons[key]}</div>
+        <div>
+          <div class="uc-name">${def.name}</div>
+          <div class="uc-cost">${def.cost} pt${def.cost !== 1 ? 's' : ''}</div>
+        </div>
+      </div>
+      <div class="uc-stats">
+        <span class="stat">MA <strong>${def.ma}"</strong></span>
+        <span class="stat">Wpn <strong>${(WEAPON_DEFS[def.weapon]||{}).attackDice || '?'}D6</strong></span>
+        <span class="stat">Rng <strong>${(WEAPON_DEFS[def.weapon]||{}).range || '?'}"</strong></span>
+        <span class="stat">AP <strong>${(WEAPON_DEFS[def.weapon]||{}).ap || 0}</strong></span>
+      </div>
+      ${def.ability ? `<div class="uc-ability">⚡ ${def.ability.charAt(0).toUpperCase() + def.ability.slice(1)}</div>` : ''}
+      <div class="uc-desc">${def.desc}</div>
+    `;
+    cat.appendChild(card);
   });
 
-  peer.on('error', e => {
-    if (e.type === 'unavailable-id') {
-      lobbyStatus('Room ID conflict, retrying…');
-      peer.destroy();
-      peer = null;
-      // Bug fix: hostGame2 was never defined — just re-run hostGame() after a short delay
-      setTimeout(hostGame, 500);
-    } else {
-      lobbyStatus('Error: ' + e.type, true);
-      document.getElementById('btn-host').disabled = false;
-    }
-  });
-}
+  // Set defaults
+  UI.setTheme('urban');
+  UI.setDensity('medium');
+  UI.setGameMode('elimination');
 
-// ── Security helpers ─────────────────────────────────────────
-function sanitizeText(str, maxLen = 32) {
-  if (typeof str !== 'string') return '';
-  return str.slice(0, maxLen).replace(/[<>&"'`]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;','`':'&#96;'}[c]));
-}
-const VALID_ACTIONS = new Set(['fold','check','call','raise','allin']);
-
-// AI persona definitions (shared between lobby config and initPlayers)
-const AI_PERSONAS = [
-  null, // seat 0 = human host
-  { name:'Atlas', style:'Tight-Aggressive', aggression:0.72, bluffFreq:0.07, tightness:0.68, betSizeMult:1.10 },
-  { name:'Vera',  style:'Loose-Passive',    aggression:0.28, bluffFreq:0.04, tightness:0.30, betSizeMult:0.70 },
-  { name:'Duke',  style:'Maniac',           aggression:0.90, bluffFreq:0.28, tightness:0.20, betSizeMult:1.40 },
-  { name:'Rex',   style:'Calling Station',  aggression:0.35, bluffFreq:0.05, tightness:0.22, betSizeMult:0.85 },
-  { name:'Nina',  style:'Balanced',         aggression:0.55, bluffFreq:0.10, tightness:0.50, betSizeMult:1.00 },
-];
-
-function renderWaitingSlots() {
-  // F-02: use DOM API (no innerHTML) to prevent XSS from any interpolated data
-  const el = document.getElementById('waiting-players');
-  el.innerHTML = '';
-  const names = { 0: myName };
-  clientConns.forEach(c => { names[c.seatIdx] = c.name; });
-
-  for (let i = 0; i < 6; i++) {
-    const slot = document.createElement('div');
-    slot.className = 'waiting-slot';
-
-    const dot = document.createElement('span');
-    dot.className = 'slot-dot';
-    const label = document.createElement('span');
-    label.className = 'slot-label';
-    const type = document.createElement('span');
-    type.className = 'slot-type';
-
-    if (humanSeats.includes(i)) {
-      dot.classList.add('connected');
-      label.textContent = sanitizeText(names[i] || 'Connecting…');
-      type.textContent = 'Human';
-    } else if (disabledAISeats.has(i)) {
-      slot.style.opacity = '0.35';
-      label.textContent = `Seat ${i + 1}`;
-      type.textContent = 'Empty';
-    } else {
-      const persona = AI_PERSONAS[i];
-      dot.classList.add('ai');
-      label.textContent = persona ? sanitizeText(persona.name) : `Seat ${i + 1}`;
-      type.textContent = 'AI';
-    }
-
-    slot.appendChild(dot);
-    slot.appendChild(label);
-    slot.appendChild(type);
-    el.appendChild(slot);
-  }
-}
-
-function renderAISeatConfig() {
-  // F-02: use DOM API (no innerHTML) to prevent XSS from any interpolated data
-  const container = document.getElementById('ai-seat-rows');
-  container.innerHTML = '';
-  for (let i = 1; i <= 5; i++) {
-    if (humanSeats.includes(i)) continue;
-    const persona = AI_PERSONAS[i];
-    const enabled = !disabledAISeats.has(i);
-
-    const row = document.createElement('div');
-    row.className = 'ai-seat-row';
-
-    const info = document.createElement('div');
-    info.className = 'ai-seat-info';
-
-    const nameSpan = document.createElement('span');
-    nameSpan.className = 'ai-seat-name';
-    nameSpan.textContent = `Seat ${i + 1} · ${persona ? sanitizeText(persona.name) : `Seat ${i + 1}`}`;
-
-    const styleSpan = document.createElement('span');
-    styleSpan.className = 'ai-seat-style';
-    styleSpan.textContent = persona ? sanitizeText(persona.style) : '';
-
-    info.appendChild(nameSpan);
-    info.appendChild(styleSpan);
-
-    const lbl = document.createElement('label');
-    lbl.className = 'ai-toggle';
-
-    const cb = document.createElement('input');
-    cb.type = 'checkbox';
-    cb.checked = enabled;
-    // Use addEventListener instead of inline onchange (F-02)
-    cb.addEventListener('change', (function(seatIdx) {
-      return function() { toggleAISeat(seatIdx, this.checked); };
-    })(i));
-
-    const slider = document.createElement('span');
-    slider.className = 'ai-toggle-slider';
-
-    lbl.appendChild(cb);
-    lbl.appendChild(slider);
-
-    row.appendChild(info);
-    row.appendChild(lbl);
-    container.appendChild(row);
-  }
-}
-
-function toggleAISeat(seatIdx, enabled) {
-  if (enabled) { disabledAISeats.delete(seatIdx); }
-  else { disabledAISeats.add(seatIdx); }
-  renderWaitingSlots();
-}
-
-function updateStartButton() {
-  document.getElementById('btn-start-game').disabled = humanSeats.length < 2;
-}
-
-function handleHostReceive(conn, data) {
-  if (data.type === 'ecdh') {
-    // F-01: client has sent its ECDH public key; derive the shared secret for this connection
-    importPublicKey(data.clientPublicKey).then(async clientPub => {
-      const shared = await deriveSharedSecret(clientPub);
-      // XOR the shared secret with the host's session secret to produce the per-client chat secret
-      // This means both sides need the ECDH agreement AND for the host to have distributed
-      // the session secret (which now happens via the ECDH channel after key exchange completes)
-      conn._sessionSecret = shared;
-      // Send the session secret encrypted under the ECDH-derived key
-      // For simplicity we XOR: client will XOR shared with what host sends to get sessionSecret
-      const xored = new Uint8Array(32);
-      for (let i = 0; i < 32; i++) xored[i] = sessionSecret[i] ^ shared[i];
-      conn.send({ type:'sessionKey', xored: btoa(String.fromCharCode(...xored)) });
-    }).catch(() => {});
-    return;
-  }
-  if (data.type === 'setName') {
-    // Sanitize and cap name length before storing
-    const safeName = String(data.name || '').trim().slice(0, 20) || 'Player';
-    conn._name = safeName;
-    const info = clientConns.find(c => c.conn === conn);
-    if (info) info.name = safeName;
-    renderWaitingSlots();
-    if (handInProgress) {
-      players[conn._seatIdx].name = safeName;
-      broadcastState();
-    }
-  } else if (data.type === 'action') {
-    // Validate action is a known string and raiseAmt is a safe integer
-    const action = VALID_ACTIONS.has(data.action) ? data.action : null;
-    const raiseAmt = Number.isFinite(data.raiseAmt) && data.raiseAmt >= 0
-      ? Math.floor(Math.min(data.raiseAmt, STARTING_STACK * 4))
-      : 0;
-    if (action && handInProgress && currentPlayerIdx === conn._seatIdx) {
-      executeAction(conn._seatIdx, action, raiseAmt);
-    }
-  } else if (data.type === 'chat') {
-    relayOrReceiveChat(conn, data);
-  }
-}
-
-function handleClientReceive(data) {
-  if (data.type === 'welcome') {
-    // Fix #8: validate seatIdx before using it as an array index
-    const seatIdx = data.seatIdx;
-    if (!Number.isInteger(seatIdx) || seatIdx < 0 || seatIdx > 5) {
-      lobbyStatus('⚠ Invalid seat assignment from host — rejecting.', true);
-      return;
-    }
-    mySeatIdx = seatIdx;
-    myRoomCode = data.roomCode;
-    lobbyStatus(`Joined! You are Seat ${mySeatIdx + 1}. Waiting for host to start…`);
-    hostConn.send({ type:'setName', name: myName });
-    // F-01: ECDH key exchange — generate our key pair and send our public key to the host
-    generateECDHKeyPair().then(async () => {
-      _ecdhPeerPublicKey = await importPublicKey(data.hostPublicKey);
-      const clientPubKey = await exportPublicKey(_ecdhKeyPair.publicKey);
-      hostConn.send({ type:'ecdh', clientPublicKey: clientPubKey });
-    }).catch(() => {
-      lobbyStatus('⚠ Key exchange failed — chat encryption unavailable', true);
-    });
-  } else if (data.type === 'sessionKey') {
-    // F-01: derive the shared ECDH secret and XOR with host's masked session secret
-    deriveSharedSecret(_ecdhPeerPublicKey).then(shared => {
-      const xored = Uint8Array.from(atob(data.xored), c => c.charCodeAt(0));
-      const secret = new Uint8Array(32);
-      for (let i = 0; i < 32; i++) secret[i] = xored[i] ^ shared[i];
-      sessionSecret = secret;
-      // Fix #6: call initChatCrypto here regardless of whether enterGame has already
-      // fired — covers the race where startGame arrives before sessionKey.
-      // initChatCrypto is idempotent (chatAESKey guard prevents double-init).
-      if (!chatAESKey) initChatCrypto();
-    }).catch(() => {});
-  } else if (data.type === 'full') {
-    lobbyStatus('Room is full!', true);
-  } else if (data.type === 'gameState') {
-    applyGameState(data.state);
-  } else if (data.type === 'chat') {
-    receiveChat(data.from, data.payload);
-  } else if (data.type === 'startGame') {
-    // Bug fix: validate the startGame payload before applying it
-    const validSeats = [4, 6];
-    const seats = data.maxSeats;
-    if (!validSeats.includes(seats)) return;
-    if (!Array.isArray(data.humanSeats) || data.humanSeats.some(s => !Number.isInteger(s) || s < 0 || s >= seats)) return;
-    if (!Number.isInteger(data.seatIdx) || data.seatIdx < 0 || data.seatIdx >= seats) return;
-    humanSeats = data.humanSeats;
-    mySeatIdx = data.seatIdx;
-    MAX_SEATS = data.maxSeats || 4;
-    setSeatVisibility();
-    enterGame(); // enterGame calls initChatCrypto which broadcasts keys when ready
-  }
-}
-
-function serializeState(forSeatIdx = null) {
-  // Build the seat-independent payload once; only the hand field varies per client
-  const common = {
-    communityCards, pot, currentBet, phase,
-    currentPlayerIdx, dealerIdx, smallBlindIdx, bigBlindIdx,
-    handInProgress, playersToAct, stats
-  };
-  common.players = players.map(p => ({
-    id: p.id, name: p.name, stack: p.stack,
-    hand: (forSeatIdx !== null && p.id === forSeatIdx) ? p.hand : [],
-    bet: p.bet, folded: p.folded, allIn: p.allIn, isAI: p.isAI, eliminated: p.eliminated
-  }));
-  return common;
-}
-
-function broadcastState() {
-  if (!isHost) return;
-  // Each client receives a state filtered to their own seat — opponent hole cards
-  // are stripped (sent as []) so a client never sees cards they shouldn't.
-  // Game metadata (stacks, bets, phase) travels as plaintext over PeerJS's
-  // signaling relay; only chat content is AES-encrypted (see chat section).
-  clientConns.forEach(c => {
-    try { c.conn.send({ type:'gameState', state: serializeState(c.seatIdx) }); } catch(e) {}
-  });
-}
-
-// F-03: Validate host-supplied game state before applying it to prevent
-//       prototype pollution and malformed-state denial-of-service attacks.
-const VALID_PHASES = new Set(['waiting','preflop','flop','turn','river','showdown']);
-function validateGameState(s) {
-  if (!s || typeof s !== 'object') return false;
-  if (!Array.isArray(s.players) || s.players.length < 2 || s.players.length > 6) return false;
-  const maxSeat = s.players.length - 1;
-  for (const p of s.players) {
-    if (typeof p.id !== 'number' || !Number.isFinite(p.id) || p.id < 0 || p.id > maxSeat) return false;
-    if (typeof p.stack !== 'number' || !Number.isFinite(p.stack) || p.stack < 0) return false;
-    if (typeof p.bet !== 'number' || !Number.isFinite(p.bet) || p.bet < 0) return false;
-    if (!Array.isArray(p.hand)) return false;
-    // Fix #10: validate each card has a known rank and suit
-    for (const c of p.hand) {
-      if (!c || typeof c !== 'object') return false;
-      if (!RANK_VAL.hasOwnProperty(c.rank)) return false;
-      if (!SUITS.includes(c.suit)) return false;
-    }
-  }
-  if (!VALID_PHASES.has(s.phase)) return false;
-  if (typeof s.pot !== 'number' || !Number.isFinite(s.pot) || s.pot < 0) return false;
-  if (typeof s.currentBet !== 'number' || !Number.isFinite(s.currentBet) || s.currentBet < 0) return false;
-  if (!Array.isArray(s.communityCards)) return false;
-  // Fix #9: validate all seat-index fields to prevent out-of-bounds array access
-  const isValidSeat = v => v === -1 || (Number.isInteger(v) && v >= 0 && v <= maxSeat);
-  if (!isValidSeat(s.currentPlayerIdx)) return false;
-  if (!isValidSeat(s.dealerIdx))        return false;
-  if (!isValidSeat(s.smallBlindIdx))    return false;
-  if (!isValidSeat(s.bigBlindIdx))      return false;
-  return true;
-}
-
-function applyGameState(state) {
-  // F-03: structuredClone strips prototype pollution; validateGameState checks types/ranges
-  let s;
-  try { s = structuredClone(state); } catch(e) { return; }
-  if (!validateGameState(s)) {
-    appendSystemMsg('⚠ Invalid game state received — ignored');
-    return;
-  }
-  players = s.players;
-  communityCards = s.communityCards;
-  pot = s.pot;
-  currentBet = s.currentBet;
-  phase = s.phase;
-  currentPlayerIdx = s.currentPlayerIdx;
-  dealerIdx = s.dealerIdx;
-  smallBlindIdx = s.smallBlindIdx;
-  bigBlindIdx = s.bigBlindIdx;
-  handInProgress = s.handInProgress;
-  playersToAct = Array.isArray(s.playersToAct) ? s.playersToAct : [];
-  if (s.stats && typeof s.stats === 'object') {
-    // Merge host stats but preserve local analysis counters — the host doesn't track these for the client
-    stats = {
-      ...s.stats,
-      foldedToWorse:   stats.foldedToWorse   ?? 0,
-      successfulBluffs: stats.successfulBluffs ?? 0,
-    };
-  }
-
-  renderAllCards();
-  updateUI();
-  updateControls();
-}
-
-// ═══════════════════════════════════════════════════════════
-//  F-01: ECDH KEY EXCHANGE
-//  Each client generates an ephemeral P-256 key pair. The host
-//  sends its public key in 'welcome'; the client responds with
-//  its own public key in 'ecdh'. Both sides derive the same
-//  shared secret via ECDH, which replaces the plaintext
-//  sessionSecret that was previously sent over the wire.
-//  The raw session secret never leaves the host.
-// ═══════════════════════════════════════════════════════════
-let _ecdhKeyPair = null;  // { privateKey, publicKey } — set for host and each client
-
-async function generateECDHKeyPair() {
-  _ecdhKeyPair = await crypto.subtle.generateKey(
-    { name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveKey', 'deriveBits']
-  );
-}
-
-// Export a public key to a base64 string for transmission
-async function exportPublicKey(key) {
-  const raw = await crypto.subtle.exportKey('raw', key);
-  return btoa(String.fromCharCode(...new Uint8Array(raw)));
-}
-
-// Import a base64 public key for ECDH
-async function importPublicKey(b64) {
-  const raw = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
-  return crypto.subtle.importKey('raw', raw, { name: 'ECDH', namedCurve: 'P-256' }, false, []);
-}
-
-// Derive a 32-byte shared secret from our private key + peer's public key
-async function deriveSharedSecret(theirPublicKey) {
-  const bits = await crypto.subtle.deriveBits(
-    { name: 'ECDH', public: theirPublicKey }, _ecdhKeyPair.privateKey, 256
-  );
-  return new Uint8Array(bits);
-}
-
-function copyRoomCode() {
-  navigator.clipboard.writeText(myRoomCode).catch(() => {});
-  const el = document.getElementById('room-code-display') || document.getElementById('room-badge');
-  const orig = el.textContent;
-  el.textContent = 'Copied!';
-  setTimeout(() => el.textContent = orig, 1200);
-}
-
-// ═══════════════════════════════════════════════════════════
-//  GAME ENTRY
-// ═══════════════════════════════════════════════════════════
-function setSeatVisibility() {
-  const sixSeats = MAX_SEATS === 6;
-  document.getElementById('table').classList.toggle('six-seats', sixSeats);
-  // Seats 4 and 5 only exist in 6-seat mode
-  document.getElementById('seat-4').style.display = sixSeats ? '' : 'none';
-  document.getElementById('seat-5').style.display = sixSeats ? '' : 'none';
-}
-
-function startSoloGame() {
-  myName = getPlayerName() || 'You';
-  isSolo = true;
-  isHost = true;
-  mySeatIdx = 0;
-  humanSeats = [0];
-  myRoomCode = '';
-  MAX_SEATS = 4;
-  disabledAISeats = new Set();
-  setSeatVisibility();
-  initPlayers();
-  enterGame();
-}
-
-function startMultiplayerGame() {
-  if (!isHost) return;
-  MAX_SEATS = 6;
-  setSeatVisibility();
-  clientConns.forEach(c => {
-    c.conn.send({ type:'startGame', humanSeats, seatIdx: c.seatIdx, maxSeats: 6 });
-  });
-  enterGame();
-}
-
-function enterGame() {
-  document.getElementById('lobby').style.display = 'none';
-  const gw = document.getElementById('game-wrapper');
-  gw.style.display = '';
-  gw.classList.add('active');
-  document.getElementById('stats-panel').style.display = 'block';
-  document.getElementById('message-bar').style.display = 'block';
-  document.getElementById('controls').style.display = 'flex';
-
-  if (!isSolo) {
-    document.getElementById('room-badge').style.display = 'block';
-    document.getElementById('room-badge').textContent = 'ROOM: ' + myRoomCode;
-    document.getElementById('net-badge').style.display = 'block';
-  }
-  // Show chat for both solo and multiplayer
-  document.getElementById('chat-panel').style.display = 'flex';
-  if (!isSolo) {
-    // If the ECDH sessionKey has already arrived (fast host), init now.
-    // Otherwise initChatCrypto() will be called by the sessionKey handler once
-    // the secret is established — prevents the race where startGame arrives
-    // before sessionKey completes the ECDH round-trip.
-    if (sessionSecret) {
-      initChatCrypto();
-    }
-    // else: initChatCrypto() fires from the sessionKey handler (see handleClientReceive)
-  } else {
-    appendSystemMsg('Solo game started. Good luck!');
-  }
-  // Show main menu button
-  document.getElementById('btn-main-menu').style.display = 'block';
-
-  if (isHost) {
-    initPlayers();
-    buildDifficultyPanel();
-    document.getElementById('difficulty-panel').style.display = 'block';
-    document.getElementById('btn-host-deal').style.display = 'inline-block';
-  }
-
-  // Mark player's own seat
-  document.getElementById(`info-${mySeatIdx}`).classList.add('is-you');
-
-  setMessage(isHost ? 'You are the host. Press Deal to start!' : 'Waiting for host to deal…');
-  updateUI();
-  updateControls();
-  scaleTableScene();
-}
-
-function initPlayers() {
-  players = [];
-  for (let i = 0; i < MAX_SEATS; i++) {
-    const isHuman = humanSeats.includes(i);
-    const isDisabled = !isHuman && disabledAISeats.has(i);
-    let name, persona;
-    if (i === mySeatIdx) {
-      name = myName;
-      persona = null;
-    } else if (isHuman) {
-      const info = clientConns.find(c => c.seatIdx === i);
-      name = info ? info.name : `Player ${i+1}`;
-      persona = null;
-    } else {
-      persona = AI_PERSONAS[i] || { name:`Bot ${i+1}`, style:'Balanced', aggression:0.55, bluffFreq:0.10, tightness:0.50, betSizeMult:1.00 };
-      name = persona.name;
-    }
-    players.push({
-      id: i, name, stack: STARTING_STACK,
-      hand: [], bet: 0, folded: false, allIn: false,
-      isAI: !isHuman, eliminated: isDisabled, // disabled AI seats start eliminated
-      persona: isHuman ? null : persona
-    });
-  }
-}
-
-function buildDifficultyPanel() {
-  // F-02: use DOM API (no innerHTML with interpolation) to prevent XSS
-  const container = document.getElementById('diff-rows');
-  container.innerHTML = '';
-  let count = 0;
-  for (let i = 0; i < MAX_SEATS; i++) {
-    if (humanSeats.includes(i)) continue;
-    if (players[i] && players[i].eliminated) continue;
-    const p = players[i];
-    const styleText = p && p.persona ? p.persona.style : '';
-
-    const row = document.createElement('div');
-    row.className = 'diff-row';
-
-    const nameCol = document.createElement('div');
-    nameCol.className = 'diff-name-col';
-
-    const nameEl = document.createElement('span');
-    nameEl.className = 'diff-name';
-    nameEl.textContent = p ? sanitizeText(p.name) : `Seat ${i + 1}`;
-
-    const styleEl = document.createElement('span');
-    styleEl.className = 'diff-style';
-    styleEl.id = `style-label-${i}`;
-    styleEl.textContent = sanitizeText(styleText);
-
-    nameCol.appendChild(nameEl);
-    nameCol.appendChild(styleEl);
-
-    const sel = document.createElement('select');
-    sel.className = 'diff-select';
-    sel.id = `diff-${i}`;
-    sel.addEventListener('change', (function(seatIdx) {
-      return function() { applyDifficulty(seatIdx); };
-    })(i));
-    ['easy', 'medium', 'hard'].forEach(val => {
-      const opt = document.createElement('option');
-      opt.value = val;
-      opt.textContent = val.charAt(0).toUpperCase() + val.slice(1);
-      if (val === 'medium') opt.selected = true;
-      sel.appendChild(opt);
-    });
-
-    row.appendChild(nameCol);
-    row.appendChild(sel);
-    container.appendChild(row);
-    count++;
-  }
-  const panel = document.getElementById('difficulty-panel');
-  if (count === 0) {
-    panel.style.display = 'none';
-  } else {
-    panel.style.display = 'block';
-  }
-}
-
-// ═══════════════════════════════════════════════════════════
-//  DECK
-// ═══════════════════════════════════════════════════════════
-function buildDeck() {
-  deck = [];
-  dealtCardIds = new Set();
-  for (let s of SUITS) for (let r of RANKS) deck.push({ rank:r, suit:s });
-  shuffle(deck);
-}
-function shuffle(arr) {
-  // Bug fix: Math.random() is not cryptographically secure — use CSPRNG for fair card distribution
-  const randomBytes = crypto.getRandomValues(new Uint32Array(arr.length));
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = randomBytes[i] % (i + 1);
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-  }
-}
-let dealtCardIds = new Set();
-function dealCard() {
-  // Pop cards until we find one not already dealt (guards against any state corruption)
-  while (deck.length > 0) {
-    const card = deck.pop();
-    const id = card.rank + card.suit;
-    if (!dealtCardIds.has(id)) {
-      dealtCardIds.add(id);
-      return card;
-    }
-  }
-  // Fallback: should never happen with a clean deck
-  console.error('Deck exhausted unexpectedly');
-  return { rank: '?', suit: '?' };
-}
-
-// ═══════════════════════════════════════════════════════════
-//  CARD RENDERING
-// ═══════════════════════════════════════════════════════════
-function isRed(suit) { return suit==='♥'||suit==='♦'; }
-function cardHTML(card) {
-  const cls = isRed(card.suit)?'red':'black';
-  return `<div class="card ${cls}">
-    <div class="corner-tl"><div>${card.rank}</div><div>${card.suit}</div></div>
-    <div>${card.suit}</div>
-    <div class="corner-br"><div>${card.rank}</div><div>${card.suit}</div></div>
-  </div>`;
-}
-function renderCommunityCards() {
-  const el = EL['community-cards'];
-  let html = '';
-  for (let i = 0; i < 5; i++) {
-    html += i < communityCards.length ? cardHTML(communityCards[i]) : '<div class="card-placeholder"></div>';
-  }
-  el.innerHTML = html;
-}
-function renderPlayerCards(pid, reveal=false) {
-  const el = EL.cards[pid];
-  const p = players[pid];
-  if (!p || !p.hand || p.hand.length === 0) { if (el) el.innerHTML = ''; return; }
-  const show = pid === mySeatIdx || reveal || (p.isAI && reveal);
-  let html = '';
-  if (show) { for (let c of p.hand) html += cardHTML(c); }
-  else html = '<div class="card-back"></div><div class="card-back"></div>';
-  el.innerHTML = html;
-}
-function renderAllCards(revealAll=false) {
-  for (let i=0;i<MAX_SEATS;i++) renderPlayerCards(i, revealAll);
-  renderCommunityCards();
-}
-
-// ═══════════════════════════════════════════════════════════
-//  UI
-// ═══════════════════════════════════════════════════════════
-function updateUI() {
-  EL['pot-display'].textContent = `POT: $${pot.toLocaleString()}`;
-  EL['phase-label'].textContent = phase.toUpperCase();
-  for (let p of players) {
-    EL.pname[p.id].textContent = p.name;
-    EL.stack[p.id].textContent = p.eliminated ? '💀 Eliminated' : `$${p.stack.toLocaleString()}`;
-    EL.bet[p.id].textContent   = p.bet > 0 ? `Bet: $${p.bet.toLocaleString()}` : '';
-    const info = EL.info[p.id];
-    info.classList.toggle('folded',      p.folded || p.eliminated);
-    info.classList.toggle('active',      currentPlayerIdx === p.id && handInProgress && !p.eliminated);
-    info.classList.toggle('dealer',      dealerIdx === p.id && !p.eliminated);
-    info.classList.toggle('small-blind', handInProgress && p.id === smallBlindIdx && phase === 'preflop' && !p.eliminated);
-    info.classList.toggle('big-blind',   handInProgress && p.id === bigBlindIdx   && phase === 'preflop' && !p.eliminated);
-  }
-  // renderAllCards() already calls renderCommunityCards(); only call it here when
-  // updateUI is called standalone (not preceded by renderAllCards)
-  renderCommunityCards();
-  updateStats();
-
-  // Host deal button visibility
-  const dealBtn = EL['btn-host-deal'];
-  if (isHost && dealBtn) dealBtn.style.display = handInProgress ? 'none' : 'inline-block';
-  EL['btn-next-hand'].style.display = isHost ? 'inline-block' : 'none';
-}
-
-function setActionLabel(pid, text) {
-  const el = EL.actionLabel[pid];
-  if (el) el.textContent = text;
-}
-function clearActionLabels() { for (let i = 0; i < MAX_SEATS; i++) { if (EL.actionLabel[i]) EL.actionLabel[i].textContent = ''; } }
-function setMessage(msg) { EL['message-bar'].textContent = msg; }
-
-function updateStats() {
-  EL['stat-hands'].textContent      = stats.hands;
-  EL['stat-wins'].textContent       = stats.wins;
-  EL['stat-biggest'].textContent    = `$${stats.biggest.toLocaleString()}`;
-  if (EL['stat-fold-worse']) EL['stat-fold-worse'].textContent = stats.foldedToWorse;
-  if (EL['stat-bluffs'])     EL['stat-bluffs'].textContent     = stats.successfulBluffs;
-  const myStack = players[mySeatIdx] ? players[mySeatIdx].stack : STARTING_STACK;
-  const pnl = myStack - stats.startStack;
-  const pnlEl = EL['stat-pnl'];
-  pnlEl.textContent = (pnl >= 0 ? '+' : '') + `$${pnl.toLocaleString()}`;
-  pnlEl.style.color = pnl >= 0 ? '#7fba7f' : '#e07070';
-}
-
-function updateControls() {
-  const myTurn = handInProgress && currentPlayerIdx===mySeatIdx && playersToAct.length>0 && playersToAct[0]===mySeatIdx;
-  const p = players[mySeatIdx];
-  if (!p) return;
-  const isBBOption = phase === 'preflop' && mySeatIdx === bigBlindIdx && currentBet === BIG_BLIND;
-  const canCheck = currentBet===0 || p.bet===currentBet || isBBOption;
-  const callAmt = Math.min(currentBet-p.bet, p.stack);
-
-  EL['btn-fold'].disabled  = !myTurn;
-  EL['btn-check'].disabled = !myTurn || !canCheck;
-  EL['btn-call'].disabled  = !myTurn || canCheck;
-  EL['btn-raise'].disabled = !myTurn;
-  EL['btn-allin'].disabled = !myTurn;
-  EL['btn-call'].textContent = `Call $${callAmt.toLocaleString()}`;
-
-  if (myTurn) {
-    const minRaise = Math.max(currentBet * 2, BIG_BLIND * 2);
-    const ri = EL['raise-input'];
-    ri.value = minRaise;
-    ri.min   = minRaise;
-    EL['btn-raise'].textContent = canCheck ? 'Bet' : 'Raise';
-    EL['raise-area'].querySelector('.raise-label').textContent = canCheck ? 'Bet:' : 'Raise:';
-  }
-}
-
-// ═══════════════════════════════════════════════════════════
-//  HOST DEAL
-// ═══════════════════════════════════════════════════════════
-function hostDeal() {
-  if (!isHost || handInProgress) return;
-  startHand();
-}
-
-// ═══════════════════════════════════════════════════════════
-//  HAND FLOW
-// ═══════════════════════════════════════════════════════════
-function nextActiveSeat(from, steps=1) {
-  let idx = from;
-  for (let i = 0; i < steps; i++) {
-    let found = false;
-    for (let j = 1; j <= MAX_SEATS; j++) {
-      const next = (idx + j) % MAX_SEATS;
-      if (!players[next].eliminated) { idx = next; found = true; break; }
-    }
-    if (!found) return idx;
-  }
-  return idx;
-}
-
-function startHand() {
-  clearTimeout(npcThinkTimeout);
-  clearTimeout(runOutTimeout);
-  runOutTimeout = null;
-
-  // Eliminate busted AI players; check humans
-  players.forEach(p => {
-    if (p.stack <= 0 && p.isAI && !p.eliminated) {
-      p.eliminated = true;
-      appendSystemMsg(`💀 ${p.name} has been eliminated!`);
-      buildDifficultyPanel(); // refresh panel to remove eliminated AI
+  // Mouse-follow tooltip
+  document.addEventListener('mousemove', (e) => {
+    const tt = document.getElementById('tooltip');
+    if (tt && tt.style.display === 'block') {
+      tt.style.left = (e.clientX + 14) + 'px';
+      tt.style.top  = (e.clientY - 10) + 'px';
     }
   });
 
-  // Count active (non-eliminated) players
-  const activePlayers = players.filter(p => !p.eliminated);
-  if (activePlayers.length < 2) {
-    // Game over — show the overlay with stats and new-game / menu buttons
-    const lastStanding = activePlayers[0] || players[mySeatIdx];
-    showGameOver(lastStanding);
-    return;
-  }
+  console.log('%c⚔ Rogue Warriors Digital — Loaded', 'color:#ffbe0b; font-size:16px; font-weight:bold;');
 
-  const me = players[mySeatIdx];
-  if (me && me.stack<=0) { showBustOverlay(); return; }
-
-  handInProgress = true;
-  communityCards = [];
-  pot = 0; currentBet = 0; playersToAct = [];
-  foldSnapshot = null;   // clear any snapshot from the previous hand
-  buildDeck();
-  players.forEach(p => {
-    p.hand = p.eliminated ? [] : [dealCard(), dealCard()];
-    p.bet = 0; p.folded = p.eliminated; p.allIn = false;
-  });
-  dealerIdx = nextActiveSeat(dealerIdx);
-  // Heads-up rule: with exactly 2 active players the dealer posts the small blind
-  // and acts first preflop; with 3+ players SB is the seat after the dealer.
-  const activeCnt = players.filter(p => !p.eliminated).length;
-  if (activeCnt === 2) {
-    smallBlindIdx = dealerIdx;
-    bigBlindIdx   = nextActiveSeat(dealerIdx);
-  } else {
-    smallBlindIdx = nextActiveSeat(dealerIdx);
-    bigBlindIdx   = nextActiveSeat(smallBlindIdx);
-  }
-  postBlind(smallBlindIdx, SMALL_BLIND);
-  postBlind(bigBlindIdx, BIG_BLIND);
-  currentBet = BIG_BLIND;
-  setActionLabel(smallBlindIdx,'Small Blind');
-  setActionLabel(bigBlindIdx,'Big Blind');
-  phase = 'preflop';
-  stats.hands++;
-  // Bug fix: use nextActiveSeat to skip eliminated seats when finding UTG
-  startBettingRound(nextActiveSeat(bigBlindIdx));
-  const dn=players[dealerIdx].name,sbn=players[smallBlindIdx].name,bbn=players[bigBlindIdx].name;
-  setMessage(`Hand #${stats.hands} | Dealer:${dn} SB:${sbn}($${SMALL_BLIND}) BB:${bbn}($${BIG_BLIND})`);
-  renderAllCards(false);
-  updateUI();
-  updateControls();
-  broadcastState();
-  scheduleNext();
-}
-
-function postBlind(pid, amount) {
-  const p = players[pid];
-  const actual = Math.min(amount, p.stack);
-  p.stack -= actual; p.bet += actual; pot += actual;
-}
-
-function startBettingRound(startPid) {
-  playersToAct = [];
-  for (let i=0;i<players.length;i++) {
-    const pid = (startPid+i)%players.length;
-    if (!players[pid].folded && !players[pid].allIn && !players[pid].eliminated) playersToAct.push(pid);
-  }
-  currentPlayerIdx = playersToAct.length>0 ? playersToAct[0] : -1;
-}
-
-// ═══════════════════════════════════════════════════════════
-//  ACTIONS
-// ═══════════════════════════════════════════════════════════
-function playerAction(action) {
-  // Human action from UI
-  if (!handInProgress) return;
-  if (playersToAct.length===0 || playersToAct[0]!==mySeatIdx) return;
-
-  // Bug fix: parseInt can return NaN if the input is empty/invalid; default to 0
-  const rawRaise = parseInt(document.getElementById('raise-input').value);
-  const raiseAmt = Number.isFinite(rawRaise) && rawRaise >= 0 ? rawRaise : 0;
-
-  if (isHost) {
-    // Host executes directly
-    executeAction(mySeatIdx, action, raiseAmt);
-  } else {
-    // Client sends to host
-    hostConn.send({ type:'action', action, raiseAmt });
-    // Disable buttons while waiting
-    ['btn-fold','btn-check','btn-call','btn-raise','btn-allin'].forEach(id => {
-      document.getElementById(id).disabled = true;
-    });
-  }
-}
-
-function executeAction(pid, action, raiseAmt) {
-  const p = players[pid];
-  const callAmt = Math.min(currentBet-p.bet, p.stack);
-  let raised = false;
-
-  if (action==='fold') {
-    p.folded=true; setActionLabel(pid,'Fold');
-    // Analysis: if this is the human player folding, snapshot their hand so we can
-    // compare it against opponents' holdings at showdown
-    if (pid === mySeatIdx) {
-      foldSnapshot = {
-        hand:      p.hand.slice(),
-        community: communityCards.slice(),
-        phase
-      };
-    }
-  } else if (action==='check') {
-    setActionLabel(pid,'Check');
-  } else if (action==='call') {
-    const c=Math.min(callAmt,p.stack);
-    p.stack-=c; p.bet+=c; pot+=c;
-    if(p.stack===0) p.allIn=true;
-    setActionLabel(pid,`Call $${c}`);
-  } else if (action==='raise') {
-    const rt = raiseAmt || (Math.max(currentBet*2,BIG_BLIND*2));
-    const additional = rt - p.bet;
-    if (additional>0 && additional<=p.stack) {
-      p.stack-=additional; p.bet=rt; pot+=additional;
-      currentBet=rt; raised=true;
-      if(p.stack===0) p.allIn=true;
-      setActionLabel(pid,`Raise $${rt}`);
-    } else {
-      // Fallback to call
-      const c=Math.min(callAmt,p.stack);
-      p.stack-=c; p.bet+=c; pot+=c;
-      if(p.stack===0) p.allIn=true;
-      setActionLabel(pid,`Call $${c}`);
-    }
-  } else if (action==='allin') {
-    const amt=p.stack; p.stack=0; p.bet+=amt; pot+=amt;
-    if(p.bet>currentBet){currentBet=p.bet; raised=true;}
-    p.allIn=true; setActionLabel(pid,'All-In!');
-  }
-
-  recordAction(raised);
-}
-
-function recordAction(raisedNewBet) {
-  const actedPid = playersToAct.shift();
-  if (raisedNewBet) {
-    for (let i=1;i<=players.length;i++) {
-      const pid=(actedPid+i)%players.length;
-      if (!players[pid].folded && !players[pid].allIn && !playersToAct.includes(pid)) {
-        playersToAct.push(pid);
+  // Escape key toggles in-game menu
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      const overlay = document.getElementById('game-menu-overlay');
+      if (!overlay) return;
+      if (overlay.classList.contains('open')) {
+        UI.closeGameMenu();
+      } else if (document.getElementById('screen-game').classList.contains('active')) {
+        UI.openGameMenu();
       }
     }
-  }
-  playersToAct = playersToAct.filter(pid => !players[pid].folded && !players[pid].allIn && !players[pid].eliminated);
-  const stillIn = players.filter(p=>!p.folded && !p.eliminated);
-  if (stillIn.length===1) { endHand(); return; }
-  if (playersToAct.length===0) {
-    const canAct = players.filter(p=>!p.folded&&!p.allIn&&!p.eliminated);
-    if (canAct.length<=1) { runOutBoard(); return; }
-    nextPhase(); return;
-  }
-  currentPlayerIdx = playersToAct[0];
-  updateUI(); updateControls(); broadcastState();
-  scheduleNext();
-}
-
-function scheduleNext() {
-  if (!isHost) return;
-  if (playersToAct.length===0) return;
-  const pid = playersToAct[0];
-  if (!players[pid].isAI) {
-    // Human player — broadcast state so they can act
-    setMessage(`Waiting for ${players[pid].name}…`);
-    broadcastState();
-    return;
-  }
-  setMessage(`${players[pid].name} is thinking…`);
-  broadcastState();
-  clearTimeout(npcThinkTimeout);
-  npcThinkTimeout = setTimeout(() => npcAction(pid), 800+Math.random()*700);
-}
-
-function nextPhase() {
-  players.forEach(p=>{ p.bet=0; });
-  currentBet=0; clearActionLabels();
-  if (phase==='preflop') {
-    phase='flop';
-    communityCards.push(dealCard()); communityCards.push(dealCard()); communityCards.push(dealCard());
-    setMessage('🂠 The Flop!');
-  } else if (phase==='flop') {
-    phase='turn'; communityCards.push(dealCard()); setMessage('🂠 The Turn!');
-  } else if (phase==='turn') {
-    phase='river'; communityCards.push(dealCard()); setMessage('🂠 The River!');
-  } else if (phase==='river') { endHand(); return; }
-  startBettingRound(nextActiveSeat(dealerIdx));  // Bug fix: was (dealerIdx+1)%MAX_SEATS, could land on eliminated seat
-  updateUI(); updateControls(); broadcastState(); scheduleNext();
-}
-
-function runOutBoard() {
-  players.forEach(p=>{ p.bet=0; }); currentBet=0; clearActionLabels(); playersToAct=[];
-  for (let i=0;i<players.length;i++) { if(!players[i].folded) renderPlayerCards(i,true); }  // Bug fix: was i=1, skipped seat 0
-  const handId = stats.hands; // snapshot — if a new hand starts, callbacks from this one are stale
-  const deal = () => {
-    if (stats.hands !== handId) return; // stale — a new hand started, abort
-    if (communityCards.length<3) { communityCards.push(dealCard(),dealCard(),dealCard()); phase='flop'; }
-    else if (communityCards.length<4) { communityCards.push(dealCard()); phase='turn'; }
-    else if (communityCards.length<5) { communityCards.push(dealCard()); phase='river'; }
-    updateUI(); broadcastState();
-    if (communityCards.length<5) runOutTimeout = setTimeout(deal, 700);
-    else runOutTimeout = setTimeout(endHand, 700);
-  };
-  deal();
-}
-
-function endHand() {
-  handInProgress=false; phase='showdown'; playersToAct=[];
-  const active = players.filter(p=>!p.folded && !p.eliminated);
-  let winners = [], handResult;
-
-  if (active.length===1) {
-    winners = [active[0]];
-    handResult = 'Last player standing';
-  } else {
-    // Single-pass: evaluate each player then collect all tied at the best value
-    let bestVal = -1, bestHandResult = null;
-    const evaluated = active.map(p => {
-      const res = evaluateBestHand(p.hand, communityCards);
-      if (res.value > bestVal) { bestVal = res.value; bestHandResult = res; }
-      return { p, res };
-    });
-    handResult = bestHandResult ? bestHandResult.name : '';
-    for (const { p, res } of evaluated) {
-      if (res.value === bestVal) { p._best5 = res.cards; winners.push(p); }
-    }
-  }
-
-  if (winners.length === 0) {
-    console.error('endHand: could not determine winner(s)');
-    return;
-  }
-
-  // Split pot equally; any odd chips (rounding) go to the first winner (standard rule)
-  const share     = Math.floor(pot / winners.length);
-  const remainder = pot - share * winners.length;
-  winners.forEach((w, i) => { w.stack += share + (i === 0 ? remainder : 0); });
-
-  const myWin = winners.find(w => w.id === mySeatIdx);
-  if (myWin) {
-    stats.wins++;
-    if (pot > stats.biggest) stats.biggest = pot;
-  }
-
-  // ── Post-hand analysis ──────────────────────────────────────
-  // Analysis A: did the player fold a hand that would have beaten someone?
-  if (foldSnapshot) {
-    const finalCommunity = communityCards.slice();
-    const foldedVal = evaluateBestHand(foldSnapshot.hand, finalCommunity).value;
-    const wouldHaveBeatSomeone = active.some(opp => {
-      if (opp.id === mySeatIdx) return false;
-      return foldedVal > evaluateBestHand(opp.hand, finalCommunity).value;
-    });
-    if (wouldHaveBeatSomeone) stats.foldedToWorse++;
-    foldSnapshot = null;
-  }
-
-  // Analysis B: successful bluff — player won, all opponents folded (no showdown),
-  // and the player's own hand is weak (below one pair = hand rank 0)
-  if (myWin && active.length === 1) {
-    const myHandVal = evaluateBestHand(myWin.hand, communityCards);
-    if (myHandVal.value < 1000000) { stats.successfulBluffs++; }
-  }
-  // ── End analysis ────────────────────────────────────────────
-
-  broadcastState();
-  if (winners.length > 1) {
-    showSplitPot(winners, handResult);
-  } else {
-    showWinner(winners[0], handResult);
-  }
-  updateUI();
-}
-
-function showWinner(winner, handName) {
-  EL['winner-title'].textContent  = winner.id===mySeatIdx ? '🏆 You Win!' : `${winner.name} Wins!`;
-  EL['winner-hand'].textContent   = handName;
-  EL['winner-amount'].textContent = `+$${pot.toLocaleString()}`;
-  const best5 = winner._best5 || getBest5Cards(winner.hand, communityCards);
-  winner._best5 = null;
-  EL['winner-cards'].innerHTML = best5.map(cardHTML).join('');
-  EL['winner-overlay'].classList.add('show');
-  renderAllCards(true);
-}
-
-function showSplitPot(winners, handName) {
-  const share = Math.floor(pot / winners.length);
-  const names = winners.map(w => w.id === mySeatIdx ? 'You' : w.name).join(' & ');
-  EL['winner-title'].textContent  = `🤝 Split Pot — ${names}`;
-  EL['winner-hand'].textContent   = handName;
-  EL['winner-amount'].textContent = `$${share.toLocaleString()} each`;
-  // Show all winners' best hands side by side
-  EL['winner-cards'].innerHTML = winners.map(w => {
-    const best5 = w._best5 || getBest5Cards(w.hand, communityCards);
-    w._best5 = null;
-    return `<div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:center">${best5.map(cardHTML).join('')}</div>`;
-  }).join('<div style="width:100%;height:4px;"></div>');
-  EL['winner-overlay'].classList.add('show');
-  renderAllCards(true);
-}
-
-function nextHand() {
-  document.getElementById('winner-overlay').classList.remove('show');
-  clearTimeout(runOutTimeout); runOutTimeout = null;
-  phase='waiting'; handInProgress=false; communityCards=[]; pot=0; currentBet=0;
-  playersToAct=[];
-  players.forEach(p=>{ p.hand=[]; p.bet=0; p.folded=false; p.allIn=false; });  // Bug fix: clear allIn and pot
-  renderAllCards(false);
-  updateUI(); updateControls(); broadcastState();
-  setMessage('Press Deal to start the next hand!');
-}
-
-function showBustOverlay() {
-  handInProgress=false; playersToAct=[]; updateControls();
-  const pnl = (players[mySeatIdx]?.stack||0) - stats.startStack;
-  EL['bust-stats'].innerHTML =
-    `Hands: <b>${stats.hands}</b>&nbsp;&nbsp;Wins: <b>${stats.wins}</b><br>` +
-    `Net: <b style="color:#e07070">$${pnl.toLocaleString()}</b><br>` +
-    `🤦 Fold Regrets: <b>${stats.foldedToWorse}</b>&nbsp;&nbsp;🎭 Bluffs: <b>${stats.successfulBluffs}</b>`;
-  EL['bust-overlay'].style.display='flex';
-}
-
-function showGameOver(winnerPlayer) {
-  handInProgress = false; playersToAct = []; updateControls();
-  broadcastState();
-  const isMyWin = winnerPlayer && winnerPlayer.id === mySeatIdx;
-  const pnl = (players[mySeatIdx]?.stack || 0) - stats.startStack;
-
-  EL['gameover-title'].textContent    = isMyWin ? '🏆 You Win!' : `${winnerPlayer ? winnerPlayer.name : 'Someone'} Wins!`;
-  EL['gameover-subtitle'].textContent = isMyWin ? 'You eliminated all opponents!' : 'Better luck next time.';
-  EL['gameover-stats'].innerHTML =
-    `Hands: <b>${stats.hands}</b>&nbsp;&nbsp;Wins: <b>${stats.wins}</b><br>` +
-    `Net: <b style="color:${pnl >= 0 ? '#7fba7f' : '#e07070'}">${pnl >= 0 ? '+' : ''}$${pnl.toLocaleString()}</b><br>` +
-    `<span title="Hands you folded that would have beaten at least one opponent" style="opacity:0.85">🤦 Fold Regrets: <b>${stats.foldedToWorse}</b></span>&nbsp;&nbsp;` +
-    `<span title="Times you won with high card only, all opponents folded" style="opacity:0.85">🎭 Bluffs: <b>${stats.successfulBluffs}</b></span>`;
-
-  // Show "New Game" only in solo — multiplayer players should return to lobby
-  EL['gameover-btn-newgame'].style.display = isSolo ? 'inline-block' : 'none';
-
-  EL['gameover-overlay'].style.display = 'flex';
-}
-
-function newGame() {
-  document.getElementById('bust-overlay').style.display='none';
-  EL['gameover-overlay'].style.display = 'none';
-  stats={hands:0,wins:0,biggest:0,startStack:STARTING_STACK,foldedToWorse:0,successfulBluffs:0};
-  foldSnapshot = null;
-  dealerIdx=0; handInProgress=false; communityCards=[]; pot=0; currentBet=0; playersToAct=[];
-  initPlayers();
-  if (isHost) buildDifficultyPanel(); // rebuild so eliminated AIs are restored
-  renderAllCards(false); updateUI(); updateControls();
-  setMessage('New game! Press Deal to start.');
-  if (isHost) broadcastState();
-}
-
-// ═══════════════════════════════════════════════════════════
-//  NPC AI
-// ═══════════════════════════════════════════════════════════
-function applyDifficulty(pid) {
-  const diff = getDiff(pid);
-  const p = players[pid];
-  if (!p || !p.persona) return;
-
-  // Scale persona traits by difficulty without losing the personality character.
-  // Easy  → flatten aggression down, raise tightness (folds more), reduce bluffing
-  // Medium → use the persona as-is
-  // Hard  → amplify aggression, more bluffing, slightly looser
-  const base = p.persona;
-  if (diff === 'easy') {
-    p.persona._eff = {
-      aggression:  base.aggression * 0.55,
-      bluffFreq:   base.bluffFreq  * 0.50,
-      tightness:   Math.min(base.tightness + 0.20, 0.90),
-      betSizeMult: base.betSizeMult * 0.75,
-    };
-  } else if (diff === 'hard') {
-    p.persona._eff = {
-      aggression:  Math.min(base.aggression * 1.25, 0.97),
-      bluffFreq:   Math.min(base.bluffFreq  * 1.60, 0.40),
-      tightness:   Math.max(base.tightness  - 0.15, 0.08),
-      betSizeMult: base.betSizeMult * 1.25,
-    };
-  } else {
-    p.persona._eff = null; // use base values
-  }
-  // Update the style label to reflect difficulty
-  const label = document.getElementById(`style-label-${pid}`);
-  if (label) {
-    const diffLabel = diff === 'easy' ? ' · Easy' : diff === 'hard' ? ' · Hard' : '';
-    label.textContent = base.style + diffLabel;
-  }
-}
-
-function getPersonaTraits(pid) {
-  const p = players[pid];
-  if (!p || !p.persona) return { aggression:0.55, bluffFreq:0.08, tightness:0.45, betSizeMult:1.0 };
-  return p.persona._eff || p.persona;
-}
-
-function getDiff(pid) {
-  const el = document.getElementById(`diff-${pid}`);
-  return el ? el.value : 'medium';
-}
-
-function npcAction(pid) {
-  const p = players[pid];
-  const traits = getPersonaTraits(pid);
-  const handStrength = evaluateHandStrength(pid);
-  const callAmt = Math.min(currentBet - p.bet, p.stack);
-  const facingBet = currentBet > p.bet;
-
-  const potAfterCall = pot + callAmt;
-  const potOdds = potAfterCall > 0 ? callAmt / potAfterCall : 0;
-  const callFraction = p.stack > 0 ? callAmt / p.stack : 1;
-  const betPressure = pot > 0 ? Math.min(callAmt / pot, 2.0) : 0;
-  const canRaise = Math.floor(currentBet / BIG_BLIND) < 10 && callAmt < p.stack * 0.75;
-  const inPos = pid === dealerIdx || ((pid - dealerIdx + MAX_SEATS) % MAX_SEATS) > ((currentPlayerIdx - dealerIdx + MAX_SEATS) % MAX_SEATS);
-
-  const r = Math.random();
-  const isBluffing = r < traits.bluffFreq;
-  const eff = isBluffing ? Math.min(handStrength + traits.bluffFreq * 1.2, 1.0) : handStrength;
-
-  let action;
-
-  if (!facingBet) {
-    // Bet/raise frequency driven by aggression and hand strength
-    const raiseThreshold = 1.0 - traits.aggression; // lower aggression → higher threshold to raise
-    if (canRaise && eff > raiseThreshold) {
-      action = 'raise';
-    } else if (canRaise && isBluffing && inPos && r < traits.aggression * 0.5) {
-      action = 'raise';
-    } else {
-      action = 'check';
-    }
-  } else {
-    // Fold threshold: base from tightness + pressure scaling
-    // Tight AIs (high tightness) fold more readily; loose AIs need less to call
-    const baseFold = 0.12 + traits.tightness * 0.28;
-    const foldAt = baseFold + potOdds * 0.6 + betPressure * (0.10 + traits.tightness * 0.14) + callFraction * 0.10;
-
-    if (canRaise && eff > (0.55 + (1 - traits.aggression) * 0.20) && r < traits.aggression) {
-      action = 'raise';
-    } else if (eff >= foldAt || (callFraction < 0.05 && eff > 0.10)) {
-      action = 'call';
-    } else {
-      action = 'fold';
-    }
-  }
-
-  // Raise sizing — scaled by persona's betSizeMult
-  const baseRaise = Math.max(currentBet * 2.2, BIG_BLIND * 3);
-  const potContrib = pot * (0.35 + handStrength * 0.40) * traits.betSizeMult;
-  let raiseAmt = Math.round((baseRaise + potContrib) / 50) * 50;
-  raiseAmt = Math.min(raiseAmt, p.stack + p.bet);
-
-  executeAction(pid, action, raiseAmt);
-}
-
-// ═══════════════════════════════════════════════════════════
-//  HAND EVALUATION
-// ═══════════════════════════════════════════════════════════
-function evaluateHandStrength(pid) {
-  const p=players[pid];
-  if(communityCards.length===0) return preflopStrength(p.hand);
-  return Math.min(getBestHandValue(p.hand,communityCards)/8000000,1);
-}
-function preflopStrength(hand) {
-  const [c1,c2]=hand;
-  const v1=RANK_VAL[c1.rank],v2=RANK_VAL[c2.rank];
-  const suited=c1.suit===c2.suit,pair=v1===v2;
-  const hi=Math.max(v1,v2),lo=Math.min(v1,v2),gap=hi-lo;
-  if(pair) return 0.5+(v1-2)/24;
-  let s=(hi+lo)/28;
-  if(suited) s+=0.08; if(gap===1) s+=0.05; if(gap<=3) s+=0.03;
-  return Math.min(s,1);
-}
-function combinations(arr,k) {
-  if(k===0) return [[]]; if(arr.length<k) return [];
-  const [f,...r]=arr;
-  return [...combinations(r,k-1).map(c=>[f,...c]),...combinations(r,k)];
-}
-function getBestHandValue(hole, community) {
-  const all = [...hole, ...community];
-  if (all.length < 5) return evaluateFiveCard(all);
-  let best = -1;
-  for (let c of combinations(all, 5)) { const v = evaluateFiveCard(c); if (v > best) best = v; }
-  return best;
-}
-function getBestHandName(hole, community) {
-  const all = [...hole, ...community];
-  // Guard: if fewer than 5 cards, evaluate directly without combinations
-  if (all.length < 5) return HAND_NAMES[getHandRank(all)];
-  let best = -1, bc;
-  for (let c of combinations(all, 5)) { const v = evaluateFiveCard(c); if (v > best) { best = v; bc = c; } }
-  return HAND_NAMES[getHandRank(bc || all.slice(0, 5))];
-}
-function getBest5Cards(hole, community) {
-  const all = [...hole, ...community];
-  if (all.length <= 5) return all;
-  let best = -1, bc;
-  for (let c of combinations(all, 5)) { const v = evaluateFiveCard(c); if (v > best) { best = v; bc = c; } }
-  return bc || all.slice(0, 5);
-}
-// Single-pass version used at showdown: returns {value, name, cards} in one enumeration
-function evaluateBestHand(hole, community) {
-  const all = [...hole, ...community];
-  if (all.length < 5) {
-    const v = evaluateFiveCard(all);
-    return { value: v, name: HAND_NAMES[getHandRank(all)], cards: all };
-  }
-  let bestVal = -1, bestCards;
-  for (let c of combinations(all, 5)) {
-    const v = evaluateFiveCard(c);
-    if (v > bestVal) { bestVal = v; bestCards = c; }
-  }
-  return { value: bestVal, name: HAND_NAMES[getHandRank(bestCards)], cards: bestCards };
-}
-function getHandRank(cards) {
-  const vals  = cards.map(c => RANK_VAL[c.rank]).sort((a, b) => b - a);
-  const suits = cards.map(c => c.suit);
-  const flush = suits.every(s => s === suits[0]);
-  const uv    = [...new Set(vals)].sort((a, b) => b - a);
-  let straight = false, shi = 0;
-  for (let i = 0; i <= uv.length - 5; i++) {
-    if (uv[i] - uv[i+4] === 4) { straight = true; shi = uv[i]; break; }
-  }
-  if (!straight && vals.includes(14) && vals.includes(2) && vals.includes(3) && vals.includes(4) && vals.includes(5)) {
-    straight = true; shi = 5;
-  }
-  const counts = {};
-  for (let v of vals) counts[v] = (counts[v] || 0) + 1;
-  const cnt = Object.values(counts).sort((a, b) => b - a);
-  if (straight && flush) return shi === 14 ? 9 : 8;
-  if (cnt[0] === 4) return 7;
-  if (cnt[0] === 3 && cnt[1] === 2) return 6;
-  if (flush)    return 5;
-  if (straight) return 4;
-  if (cnt[0] === 3) return 3;
-  if (cnt[0] === 2 && cnt[1] === 2) return 2;
-  if (cnt[0] === 2) return 1;
-  return 0;
-}
-function evaluateFiveCard(cards) {
-  const rank   = getHandRank(cards);
-  const vals   = cards.map(c => RANK_VAL[c.rank]).sort((a, b) => b - a);
-  const counts = {};
-  for (let v of vals) counts[v] = (counts[v] || 0) + 1;
-  // Sort groups: primary by count desc, secondary by rank desc
-  const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1] || b[0] - a[0]);
-  let score = rank * 1000000;
-  sorted.forEach((e, i) => { score += +e[0] * Math.pow(15, 4 - i); });
-  return score;
-}
-
-// ═══════════════════════════════════════════════════════════
-//  MOBILE SCALING
-// ═══════════════════════════════════════════════════════════
-function scaleTableScene() {
-  const scene = document.getElementById('table-scene');
-  if (!scene) return;
-  const isMobile = window.innerWidth < 860;
-  if (!isMobile) {
-    scene.style.transform = '';
-    scene.style.marginBottom = '';
-    scene.style.width = '';
-    scene.style.height = '';
-    return;
-  }
-  const naturalW = 1040;
-  const naturalH = 780;
-  const scale = Math.max(0.26, window.innerWidth / naturalW);
-  scene.style.width  = naturalW + 'px';
-  scene.style.height = naturalH + 'px';
-  scene.style.transform = `scale(${scale})`;
-  scene.style.transformOrigin = 'top center';
-  // CSS transform doesn't affect layout flow, compensate with negative margin
-  scene.style.marginBottom = Math.round((naturalH * scale) - naturalH) + 'px';
-}
-
-let _scaleDebounce = null;
-window.addEventListener('resize', () => {
-  clearTimeout(_scaleDebounce);
-  _scaleDebounce = setTimeout(scaleTableScene, 80);
+  });
 });
 
-// F-05: Sync chat input maxlength to the single CHAT_MAX_LEN constant
-document.addEventListener('DOMContentLoaded', () => {
-  buildDOMCache();
-  if (EL['chat-input']) EL['chat-input'].maxLength = CHAT_MAX_LEN;
-});
-
-
-// ═══════════════════════════════════════════════════════════
-//  CHAT — SECURE ENCRYPTED CHAT
-//  Security properties (post-audit fixes applied):
-//    • AES-GCM-256 encryption
-//    • ECDH (P-256) key exchange — session secret never transmitted in plaintext (F-01)
-//    • HMAC-SHA-256 per-sender signing key (prevents cross-seat message forgery)
-//    • Monotonic sequence numbers (replay attack prevention; F-06: timestamp check removed)
-//    • Counter-hybrid IVs (uniqueness guaranteed)
-//    • Rate limiting on ALL senders including host, keyed by seatIdx (F-04)
-//    • Payload and message-length limits from single CHAT_MAX_LEN constant (F-05)
-//    • XSS-safe rendering via DOM API throughout (F-02)
-//
-//  Trust model (F-07): The host derives the same sessionSecret as all clients
-//  via the ECDH exchange, so the host can read all messages. This is inherent
-//  to the architecture (host runs all game logic). True per-player E2E requires
-//  per-pair ECDH without a shared secret — out of scope for this game.
-//  Players are notified of this in the UI when they join.
-// ═══════════════════════════════════════════════════════════
-
-let chatAESKey    = null;   // AES-GCM-256 for encryption
-let chatHMACKey   = null;   // HMAC-SHA-256 for signing (per sender)
-let chatSeq       = 0;      // outgoing sequence counter
-let chatIVCounter = 0;      // IV counter (hybrid with random bytes)
-let seenSeqs      = {};     // { seatIdx: lastSeqSeen } replay prevention
-let verifyKeyCache = {};    // { seatIdx: CryptoKey } — cached to avoid re-deriving per message
-let chatCollapsed = false;
-let chatUnreadCount = 0;
-
-// ── Key derivation from session secret ──────────────────────
-async function initChatCrypto() {
-  if (!sessionSecret) {
-    appendSystemMsg('⚠ No session secret — chat encryption unavailable');
-    return;
-  }
-  const raw = sessionSecret; // Uint8Array(32)
-
-  // Import as HKDF base key
-  const baseKey = await crypto.subtle.importKey(
-    'raw', raw, 'HKDF', false, ['deriveKey', 'deriveBits']
-  );
-
-  // Derive AES-GCM-256 key
-  chatAESKey = await crypto.subtle.deriveKey(
-    { name: 'HKDF', hash: 'SHA-256',
-      salt: new TextEncoder().encode('holdem-chat-aes'),
-      info: new TextEncoder().encode('aes-gcm-256') },
-    baseKey, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']
-  );
-
-  // Derive per-seat HMAC signing key using seat index as info.
-  // Each seat has a unique signing key derived from the shared session secret.
-  // NOTE: since all peers share the same sessionSecret, any peer can compute
-  // any seat's signing key — this prevents accidental cross-seat attribution
-  // but not deliberate forgery by a malicious peer. See F-07 trust model note.
-  const hmacBits = await crypto.subtle.deriveBits(
-    { name: 'HKDF', hash: 'SHA-256',
-      salt: new TextEncoder().encode('holdem-chat-hmac-seat-' + mySeatIdx),
-      info: new TextEncoder().encode('hmac-sha256') },
-    baseKey, 256
-  );
-  chatHMACKey = await crypto.subtle.importKey(
-    'raw', hmacBits, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign', 'verify']
-  );
-
-  chatSeq = 0;
-  chatIVCounter = 0;
-  seenSeqs = {};
-  verifyKeyCache = {};
-  appendSystemMsg('🔒 Chat encrypted · AES-256-GCM · ECDH key exchange');
-  // F-07: disclose trust model so players understand the host's visibility
-  appendSystemMsg('ℹ️ The room host can read all messages — this is by design.');
-}
-
-// Also derive a verify key for a given seat (to verify their messages) — cached per seat
-async function getVerifyKey(seatIdx) {
-  if (!sessionSecret) return null;
-  if (verifyKeyCache[seatIdx]) return verifyKeyCache[seatIdx];
-  const baseKey = await crypto.subtle.importKey(
-    'raw', sessionSecret, 'HKDF', false, ['deriveBits']
-  );
-  const bits = await crypto.subtle.deriveBits(
-    { name: 'HKDF', hash: 'SHA-256',
-      salt: new TextEncoder().encode('holdem-chat-hmac-seat-' + seatIdx),
-      info: new TextEncoder().encode('hmac-sha256') },
-    baseKey, 256
-  );
-  const key = await crypto.subtle.importKey(
-    'raw', bits, { name: 'HMAC', hash: 'SHA-256' }, false, ['verify']
-  );
-  verifyKeyCache[seatIdx] = key;
-  return key;
-}
-
-// ── Encrypt + sign ───────────────────────────────────────────
-async function encryptChatMsg(text) {
-  if (!chatAESKey || !chatHMACKey) return null;
-
-  // Fully random 96-bit IV — at typical chat volumes (< 2^20 messages/session)
-  // the birthday-attack collision probability is negligible (~1 in 2^72).
-  // This is simpler and safer than the previous counter-hybrid approach which
-  // could produce IV reuse after the 32-bit counter wrapped at 0xFFFFFFFF.
-  const iv = new Uint8Array(12);
-  crypto.getRandomValues(iv);
-  chatIVCounter++; // keep incrementing so seenSeqs replay-check still advances
-
-  const seq = chatSeq++;
-  const payload = JSON.stringify({
-    t: text, s: mySeatIdx, n: seq, ts: Date.now()
-  });
-
-  const ct = await crypto.subtle.encrypt(
-    { name: 'AES-GCM', iv }, chatAESKey, new TextEncoder().encode(payload)
-  );
-
-  // HMAC over iv + ciphertext
-  const ctBytes = new Uint8Array(ct);
-  const toSign = new Uint8Array(iv.length + ctBytes.length);
-  toSign.set(iv); toSign.set(ctBytes, iv.length);
-  const sig = new Uint8Array(await crypto.subtle.sign('HMAC', chatHMACKey, toSign));
-
-  // Pack: [iv(12)][sig(32)][ct]
-  const packed = new Uint8Array(12 + 32 + ctBytes.length);
-  packed.set(iv, 0);
-  packed.set(sig, 12);
-  packed.set(ctBytes, 44);
-  return btoa(String.fromCharCode(...packed));
-}
-
-// ── Decrypt + verify ─────────────────────────────────────────
-async function decryptChatMsg(b64, fromSeatIdx) {
-  if (!chatAESKey) return null;
-  let packed;
-  try { packed = Uint8Array.from(atob(b64), c => c.charCodeAt(0)); }
-  catch(e) { return null; }
-  if (packed.length < 44 + 1) return null;
-
-  const iv  = packed.slice(0, 12);
-  const sig = packed.slice(12, 44);
-  const ct  = packed.slice(44);
-
-  // Verify HMAC using sender's key before decrypting
-  const verifyKey = await getVerifyKey(fromSeatIdx);
-  if (!verifyKey) return null;
-  const toVerify = new Uint8Array(iv.length + ct.length);
-  toVerify.set(iv); toVerify.set(ct, iv.length);
-  const valid = await crypto.subtle.verify('HMAC', verifyKey, sig, toVerify);
-  if (!valid) {
-    appendSystemMsg('⚠ Message signature invalid — discarded');
-    return null;
-  }
-
-  // Decrypt
-  let plain;
-  try {
-    plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, chatAESKey, ct);
-  } catch(e) {
-    appendSystemMsg('⚠ Decryption failed — discarded');
-    return null;
-  }
-
-  let obj;
-  try { obj = JSON.parse(new TextDecoder().decode(plain)); }
-  catch(e) { return null; }
-
-  // Replay check — monotonic sequence numbers are the authoritative replay defence.
-  // F-06: timestamp staleness check removed; cross-peer clock skew causes false positives,
-  // and seq numbers provide stronger, clock-independent replay protection.
-  const lastSeen = seenSeqs[fromSeatIdx] ?? -1;
-  if (typeof obj.n !== 'number' || obj.n <= lastSeen) {
-    appendSystemMsg('⚠ Replayed message blocked');
-    return null;
-  }
-  seenSeqs[fromSeatIdx] = obj.n;
-
-  return obj;
-}
-
-// ── Send ─────────────────────────────────────────────────────
-async function sendChat() {
-  const input = document.getElementById('chat-input');
-  const text = input.value.trim();
-  if (!text) return;
-  if (text.length > CHAT_MAX_LEN) return;
-  // Rate-limit every sender (host and clients) with the same rules
-  if (!chatRateCheck(mySeatIdx)) {
-    appendSystemMsg('⚠ Sending too fast — slow down');
-    input.value = '';
-    return;
-  }
-  input.value = '';
-  appendChatMsg(myName, text, true);
-  if (isSolo) return;
-
-  const payload = await encryptChatMsg(text);
-  if (!payload) { appendSystemMsg('⚠ Encryption failed'); return; }
-
-  const msg = { type: 'chat', from: mySeatIdx, payload };
-  if (isHost) {
-    clientConns.forEach(c => { try { c.conn.send(msg); } catch(e){} });
-  } else {
-    if (hostConn) try { hostConn.send(msg); } catch(e){}
-  }
-}
-
-// ── Receive ──────────────────────────────────────────────────
-async function receiveChat(fromSeat, payload) {
-  const obj = await decryptChatMsg(payload, fromSeat);
-  if (!obj) return;
-  const text = String(obj.t || '');
-  if (text.length > CHAT_MAX_LEN) { appendSystemMsg('⚠ Oversized message blocked'); return; }
-  const senderName = (players && players[fromSeat]) ? players[fromSeat].name : `Seat ${fromSeat+1}`;
-  appendChatMsg(senderName, text, false);
-}
-
-// ── Host relay ───────────────────────────────────────────────
-// F-04: rate-limit map keyed by seatIdx (not conn object) so reconnects don't reset the window
-const chatRateMap = new Map();   // seatIdx → timestamp[]
-const CHAT_MAX = 5, CHAT_WINDOW = 5000;
-
-// Shared rate-check helper — returns true if the sender is within limits
-function chatRateCheck(seatIdx) {
-  const now = Date.now();
-  const ts = (chatRateMap.get(seatIdx) || []).filter(t => now - t < CHAT_WINDOW);
-  ts.push(now);
-  chatRateMap.set(seatIdx, ts);
-  return ts.length <= CHAT_MAX;
-}
-
-async function relayOrReceiveChat(fromConn, data) {
-  // Rate limit — keyed by verified seat index (F-04)
-  if (!chatRateCheck(fromConn._seatIdx)) return;
-  // Size limit — base64 of CHAT_MAX_LEN bytes + overhead; 425 bytes is a safe ceiling
-  if (typeof data.payload !== 'string' || data.payload.length > Math.ceil(CHAT_MAX_LEN * 1.5) + 200) return;
-
-  // Use the connection's verified seat index — ignore client-supplied data.from
-  const trustedFrom = fromConn._seatIdx;
-  const canonicalMsg = { type: 'chat', from: trustedFrom, payload: data.payload };
-
-  // Relay to all other clients with the corrected seat index
-  clientConns.forEach(c => {
-    if (c.conn !== fromConn) try { c.conn.send(canonicalMsg); } catch(e){}
-  });
-  // Host decrypts for itself using the verified seat
-  await receiveChat(trustedFrom, data.payload);
-}
-
-// ── UI helpers ───────────────────────────────────────────────
-function appendChatMsg(sender, text, isMe) {
-  const el = document.getElementById('chat-messages');
-  const div = document.createElement('div');
-  div.className = 'chat-msg' + (isMe ? ' me' : '');
-  const nameSpan = document.createElement('span');
-  nameSpan.className = 'chat-sender';
-  nameSpan.textContent = sender + ':';
-  const textNode = document.createTextNode(' ' + text);
-  div.appendChild(nameSpan);
-  div.appendChild(textNode);
-  el.appendChild(div);
-  el.scrollTop = el.scrollHeight;
-  if (chatCollapsed && !isMe) {
-    chatUnreadCount++;
-    const badge = document.getElementById('chat-unread');
-    badge.textContent = chatUnreadCount;
-    badge.style.display = 'inline';
-  }
-}
-
-function appendSystemMsg(text) {
-  const el = document.getElementById('chat-messages');
-  const div = document.createElement('div');
-  div.className = 'chat-msg system';
-  div.textContent = text;
-  el.appendChild(div);
-  el.scrollTop = el.scrollHeight;
-}
-
-function esc(s) {
-  return String(s)
-    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
-    .replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-}
-
-function toggleChat() {
-  chatCollapsed = !chatCollapsed;
-  document.getElementById('chat-panel').classList.toggle('collapsed', chatCollapsed);
-  document.getElementById('chat-toggle-icon').textContent = chatCollapsed ? '▼' : '▲';
-  if (!chatCollapsed) {
-    chatUnreadCount = 0;
-    document.getElementById('chat-unread').style.display = 'none';
-    document.getElementById('chat-messages').scrollTop = 99999;
-  }
-}
-
-// ═══════════════════════════════════════════════════════════
-//  MAIN MENU BUTTON
-// ═══════════════════════════════════════════════════════════
-function goToMainMenu() {
-  if (handInProgress && !confirm('Leave the current game and return to the main menu?')) return;
-  clearTimeout(npcThinkTimeout);
-  clearTimeout(runOutTimeout); runOutTimeout = null;
-  if (peer) { try { peer.destroy(); } catch(e){} peer = null; }
-  clientConns.forEach(c => { try { c.conn.close(); } catch(e){} });
-  clientConns = [];
-  if (hostConn) { try { hostConn.close(); } catch(e){} hostConn = null; }
-  handInProgress = false; phase = 'waiting';
-  communityCards = []; pot = 0; currentBet = 0; playersToAct = [];
-  isHost = false; isSolo = false; humanSeats = [];
-  MAX_SEATS = 4; disabledAISeats = new Set();
-  setSeatVisibility();
-  stats = { hands:0, wins:0, biggest:0, startStack:STARTING_STACK, foldedToWorse:0, successfulBluffs:0 };
-  foldSnapshot = null;
-  // Reset crypto state
-  chatAESKey = null; chatHMACKey = null;
-  chatSeq = 0; chatIVCounter = 0; seenSeqs = {}; verifyKeyCache = {};
-  sessionSecret = null;
-  _ecdhKeyPair = null; _ecdhPeerPublicKey = null;  // F-01: clear ECDH state
-  chatRateMap.clear();   // F-04: clear per-seat rate-limit history
-  chatUnreadCount = 0;
-  // Hide game-wrapper via class removal (not inline style) to avoid override on re-entry
-  const gwEl = document.getElementById('game-wrapper');
-  gwEl.classList.remove('active');
-  gwEl.style.display = '';
-  // Hide all other panels via inline style
-  const hide = ['stats-panel','difficulty-panel','message-bar','controls',
-    'btn-host-deal','room-badge','net-badge','chat-panel','btn-main-menu'];
-  hide.forEach(id => {
-    const el = document.getElementById(id);
-    if (el) { el.style.display='none'; el.classList && el.classList.remove('active','show'); }
-  });
-  document.getElementById('winner-overlay').classList.remove('show');
-  document.getElementById('bust-overlay').style.display = 'none';
-  EL['gameover-overlay'].style.display = 'none';
-  // Fix #4: clear the is-you highlight from whichever seat was active
-  for (let i = 0; i < 6; i++) {
-    const infoEl = document.getElementById(`info-${i}`);
-    if (infoEl) infoEl.classList.remove('is-you');
-  }
-  document.getElementById('chat-messages').innerHTML = '';
-  document.getElementById('lobby-status').textContent = '';
-  document.getElementById('lobby-error').textContent = '';
-  document.getElementById('host-room-area').style.display = 'none';
-  document.getElementById('btn-host').style.display = 'inline-block';
-  document.getElementById('btn-host').disabled = false;
-  document.getElementById('btn-join').disabled = false;
-  document.getElementById('room-code-input').value = '';
-  document.getElementById('diff-rows').innerHTML = '';
-  document.getElementById('lobby').style.display = 'block';
-}
+// room-code-display visibility is now managed inside UI.hostGame() directly.
 </script>
-
-
-<!-- Chat Panel (inside game-wrapper via JS move, kept here as sibling for layout) -->
-<div id="chat-panel">
-  <div id="chat-header" onclick="toggleChat()">
-    <span id="chat-header-title">💬 Table Chat</span>
-    <span id="chat-unread"></span>
-    <span id="chat-toggle-icon">▲</span>
-  </div>
-  <div id="chat-body">
-    <div id="chat-messages"></div>
-    <div id="chat-input-row">
-      <input id="chat-input" placeholder="Say something…" maxlength="150"
-        onkeydown="if(event.key==='Enter') sendChat()">
-      <button id="chat-send" onclick="sendChat()">➤</button>
-    </div>
-  </div>
-</div>
-
 </body>
 </html>
