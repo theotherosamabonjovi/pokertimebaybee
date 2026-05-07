@@ -2,564 +2,2940 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1">
-<title>Simple Telepathy Test</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Texas Hold'em — Multiplayer</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.2/peerjs.min.js"></script>
 <style>
-* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-:root {
-  --bg:#f7f8fa; --card:#fff; --text:#1a1a2e; --muted:#8a8fa8;
-  --border:#e4e6f0; --accent:#5b5ef4; --accent-light:#ededfd;
-  --green:#22c97a; --red:#f04040; --radius:16px;
-  --shadow:0 2px 16px rgba(0,0,0,0.07);
-}
-html,body { height:100%; background:var(--bg); font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; color:var(--text); overflow:hidden; }
-#app { width:100%; height:100%; display:flex; flex-direction:column; }
+  :root {
+    --felt: #1a4a2e; --felt-light: #1f5535; --felt-dark: #122e1e;
+    --gold: #c9a84c; --gold-light: #e8c96a; --gold-dark: #8a6b2a;
+    --cream: #f5ead0; --card-bg: #fdf6e3; --red: #c0392b; --black: #1a1a1a;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    background: radial-gradient(ellipse at center, #0d1f15 0%, #060e0a 100%);
+    font-family: 'Crimson Text', serif;
+    min-height: 700px;
+    width: 100%;
+    overflow-x: hidden;
+    overflow-y: auto;
+    display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
+    padding-top: 20px;
+    color: var(--cream);
+  }
 
-/* NAV */
-.nav {
-  padding:14px 20px 12px; display:flex; align-items:center; justify-content:space-between;
-  background:var(--card); border-bottom:1px solid var(--border); flex-shrink:0;
-}
-.nav-logo { font-size:15px; font-weight:700; }
-.nav-logo span { color:var(--accent); }
-.nav-right { display:flex; align-items:center; gap:10px; }
-.conn-pill {
-  font-size:11px; font-weight:600; padding:4px 10px; border-radius:100px;
-  display:flex; align-items:center; gap:5px; letter-spacing:.3px;
-}
-.conn-pill.offline { background:#f3f3f3; color:var(--muted); }
-.conn-pill.waiting { background:#fff8e1; color:#b36b00; }
-.conn-pill.connected { background:#e8faf0; color:#0a7a45; }
-.conn-pill .dot { width:6px; height:6px; border-radius:50%; background:currentColor; }
-.conn-pill.connected .dot { animation:blink 2s infinite; }
-@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
+  /* ── LOBBY ── */
+  #lobby {
+    background: linear-gradient(135deg,#0d1f15,#060e0a);
+    border: 2px solid var(--gold-dark);
+    border-radius: 16px; padding: 40px 50px; text-align: center;
+    box-shadow: 0 0 60px rgba(201,168,76,0.15); max-width: 480px; width: 90%;
+  }
+  #lobby h1 {
+    font-family: 'Playfair Display', serif; font-size: 2rem;
+    color: var(--gold-light); margin-bottom: 6px; letter-spacing: 3px;
+  }
+  #lobby .subtitle { font-size: 0.85rem; color: rgba(245,234,208,0.5); margin-bottom: 30px; letter-spacing: 2px; }
+  .lobby-section { margin-bottom: 22px; }
+  .lobby-section h3 { font-family:'Playfair Display',serif; font-size:0.8rem; color:var(--gold); letter-spacing:2px; text-transform:uppercase; margin-bottom:10px; }
+  .lobby-input {
+    background: rgba(255,255,255,0.06); border: 1px solid rgba(201,168,76,0.4);
+    border-radius:6px; color:var(--cream); font-family:'Crimson Text',serif;
+    font-size:1rem; padding:8px 14px; width:100%; text-align:center;
+  }
+  .lobby-input:focus { outline:none; border-color:var(--gold); }
+  .lobby-input::placeholder { color: rgba(245,234,208,0.3); }
+  .lobby-divider { border: none; border-top:1px solid rgba(201,168,76,0.15); margin:20px 0; }
+  .btn {
+    font-family:'Playfair Display',serif; font-size:0.82rem; letter-spacing:1px;
+    border:none; border-radius:6px; padding:10px 20px; cursor:pointer;
+    transition:all 0.15s; font-weight:700;
+  }
+  .btn:hover { transform:translateY(-1px); }
+  .btn:active { transform:translateY(0); }
+  .btn:disabled { opacity:0.3; cursor:not-allowed; transform:none; }
+  .btn-gold { background:var(--gold); color:#000; border:1px solid var(--gold-light); }
+  .btn-gold:hover:not(:disabled) { background:var(--gold-light); }
+  .btn-blue { background:#1a3a6e; color:#9bbfff; border:1px solid #2a5aae; }
+  .btn-blue:hover:not(:disabled) { background:#2a5aae; }
+  .btn-fold { background:#7f1c1c; color:#fff; border:1px solid #a82c2c; }
+  .btn-fold:hover:not(:disabled) { background:#a82c2c; }
+  .btn-check { background:#1a4a2e; color:var(--gold-light); border:1px solid var(--gold-dark); }
+  .btn-check:hover:not(:disabled) { background:#1f5535; }
+  .btn-call { background:#1a3a6e; color:#9bbfff; border:1px solid #2a5aae; }
+  .btn-call:hover:not(:disabled) { background:#2a5aae; }
+  .btn-raise { background:var(--gold-dark); color:#000; border:1px solid var(--gold); }
+  .btn-raise:hover:not(:disabled) { background:var(--gold); }
+  .btn-allin { background:#8b0000; color:#ffd0d0; border:1px solid #cc0000; }
+  .btn-allin:hover:not(:disabled) { background:#cc0000; }
+  .btn-deal { background:var(--gold); color:#000; border:1px solid var(--gold-light); font-size:0.85rem; padding:10px 24px; }
+  .btn-deal:hover:not(:disabled) { background:var(--gold-light); }
 
-/* Signal bars — the secret peek trigger */
-.nav-signal {
-  display:flex; align-items:flex-end; gap:3px;
-  cursor:pointer; padding:8px; border-radius:8px;
-  user-select:none; touch-action:manipulation;
-}
-.nav-signal .bar { width:4px; background:var(--border); border-radius:2px; }
-.nav-signal .bar.lit { background:var(--accent); }
-.nav-signal .bar:nth-child(1){height:7px}
-.nav-signal .bar:nth-child(2){height:12px}
-.nav-signal .bar:nth-child(3){height:17px}
+  #room-code-display {
+    font-family:'Playfair Display',serif; font-size:2.5rem; color:var(--gold-light);
+    letter-spacing:8px; text-shadow:0 0 20px rgba(201,168,76,0.4);
+    background:rgba(0,0,0,0.3); border:1px solid rgba(201,168,76,0.3);
+    border-radius:8px; padding:12px 24px; display:inline-block; margin:10px 0;
+    cursor:pointer; transition:all 0.2s;
+  }
+  #room-code-display:hover { background:rgba(201,168,76,0.1); }
+  .copy-hint { font-size:0.7rem; color:rgba(245,234,208,0.4); margin-top:4px; }
 
-/* SCREENS */
-.screen { display:none; flex-direction:column; flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; }
-.screen.active { display:flex; animation:fadeUp .3s ease; }
-@keyframes fadeUp { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+  #waiting-players { margin-top:14px; }
+  .waiting-slot {
+    display:flex; align-items:center; gap:8px; padding:6px 12px;
+    background:rgba(0,0,0,0.3); border-radius:6px; margin-bottom:6px;
+    font-size:0.82rem;
+  }
+  .slot-dot { width:8px; height:8px; border-radius:50%; background:#555; }
+  .slot-dot.connected { background:#27ae60; box-shadow:0 0 6px #27ae60; }
+  .slot-dot.ai { background:#8a6b2a; }
+  .slot-label { color:var(--cream); }
+  .slot-type { color:rgba(245,234,208,0.4); font-size:0.72rem; margin-left:auto; }
 
-/* HOME */
-.home-hero { padding:28px 20px 18px; text-align:center; }
-.home-title { font-size:30px; font-weight:800; line-height:1.15; letter-spacing:-.5px; }
-.home-title span { color:var(--accent); }
-.home-sub { font-size:15px; color:var(--muted); margin-top:6px; }
+  #lobby-status { font-size:0.78rem; color:rgba(245,234,208,0.5); margin-top:10px; min-height:18px; }
+  #lobby-error { font-size:0.78rem; color:#e07070; margin-top:6px; min-height:18px; }
+  .ai-seat-row { display:flex; align-items:center; justify-content:space-between; padding:4px 0; border-bottom:1px solid rgba(201,168,76,0.08); gap:8px; }
+  .ai-seat-row:last-child { border-bottom:none; }
+  .ai-seat-info { display:flex; flex-direction:column; }
+  .ai-seat-name { font-size:0.78rem; color:var(--cream); }
+  .ai-seat-style { font-size:0.62rem; color:rgba(201,168,76,0.5); font-style:italic; }
+  .ai-toggle { position:relative; width:36px; height:20px; flex-shrink:0; }
+  .ai-toggle input { opacity:0; width:0; height:0; }
+  .ai-toggle-slider {
+    position:absolute; inset:0; border-radius:10px; cursor:pointer;
+    background:rgba(255,255,255,0.12); transition:background 0.2s;
+  }
+  .ai-toggle-slider:before {
+    content:''; position:absolute; width:14px; height:14px; left:3px; bottom:3px;
+    border-radius:50%; background:rgba(245,234,208,0.5); transition:transform 0.2s;
+  }
+  .ai-toggle input:checked + .ai-toggle-slider { background:var(--gold-dark); }
+  .ai-toggle input:checked + .ai-toggle-slider:before { transform:translateX(16px); background:var(--cream); }
 
-.code-card {
-  margin:0 16px 14px; background:var(--card); border:1px solid var(--border);
-  border-radius:var(--radius); padding:16px 20px; box-shadow:var(--shadow);
-}
-.code-label { font-size:11px; font-weight:600; color:var(--muted); letter-spacing:1.2px; text-transform:uppercase; margin-bottom:8px; }
-.code-row { display:flex; align-items:center; justify-content:space-between; }
-.code-value { font-size:28px; font-weight:800; letter-spacing:5px; color:var(--text); }
-.code-status { font-size:12px; color:var(--muted); }
+  /* ── GAME WRAPPER ── */
+  #game-wrapper {
+    width:100%; min-height:780px; position:relative; overflow:visible;
+    display:none; align-items:center; justify-content:center;
+  }
+  #game-wrapper.active { display:flex; }
 
-.divider-or {
-  display:flex; align-items:center; gap:10px;
-  padding:0 16px 16px; color:var(--muted); font-size:13px;
-}
-.divider-or::before,.divider-or::after { content:''; flex:1; height:1px; background:var(--border); }
+  /* ── TABLE SCENE (scales on mobile) ── */
+  #table-scene {
+    position:relative;
+    width:1040px;
+    height:780px;
+    flex-shrink:0;
+    transform-origin:top center;
+  }
 
-.connect-row { display:flex; gap:10px; padding:0 16px 20px; }
-.connect-input {
-  flex:1; padding:13px 16px; border:1.5px solid var(--border); border-radius:var(--radius);
-  font-size:18px; font-weight:700; letter-spacing:4px; text-align:center;
-  font-family:inherit; background:var(--card); color:var(--text); outline:none;
-}
-.connect-input:focus { border-color:var(--accent); }
-.connect-input::placeholder { font-size:14px; letter-spacing:1px; font-weight:400; color:var(--muted); }
-.join-btn {
-  padding:13px 20px; background:var(--accent); color:white; border:none;
-  border-radius:var(--radius); font-size:14px; font-weight:600;
-  cursor:pointer; touch-action:manipulation; font-family:inherit; white-space:nowrap;
-}
-.join-btn:disabled { opacity:.5; }
+  /* ── TABLE ── */
+  #table {
+    width:680px; height:400px;
+    background:radial-gradient(ellipse at center,var(--felt-light) 0%,var(--felt) 50%,var(--felt-dark) 100%);
+    border-radius:50%; border:12px solid #5a3e1b;
+    box-shadow:0 0 0 4px #8a6b2a,0 0 0 8px #3d2a0e,0 30px 80px rgba(0,0,0,0.8),inset 0 0 60px rgba(0,0,0,0.3);
+    position:relative; overflow:visible;
+    display:flex; align-items:center; justify-content:center; flex-direction:column;
+    margin: 190px 180px;
+  }
+  #table::before {
+    content:''; position:absolute; inset:0; border-radius:50%;
+    background-image:radial-gradient(circle at 50% 50%,rgba(255,255,255,0.02) 1px,transparent 1px);
+    background-size:30px 30px; pointer-events:none;
+  }
 
-.section-label { padding:0 20px 10px; font-size:11px; font-weight:700; color:var(--muted); letter-spacing:1.2px; text-transform:uppercase; }
-.cat-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; padding:0 16px 36px; }
-.cat-card {
-  background:var(--card); border:1px solid var(--border); border-radius:var(--radius);
-  padding:22px 16px; cursor:pointer; touch-action:manipulation;
-  transition:transform .15s; box-shadow:var(--shadow);
-}
-.cat-card:active { transform:scale(.97); }
-.cat-icon { font-size:34px; margin-bottom:10px; display:block; }
-.cat-name { font-size:13px; font-weight:700; }
-.cat-desc { font-size:11px; color:var(--muted); margin-top:3px; }
+  /* ── COMMUNITY ── */
+  #community-area { display:flex; flex-direction:column; align-items:center; gap:8px; z-index:10; }
+  #pot-display { font-family:'Playfair Display',serif; font-size:1.1rem; color:var(--gold-light); text-shadow:0 0 10px rgba(201,168,76,0.5); letter-spacing:2px; margin-bottom:4px; }
+  #community-cards { display:flex; gap:6px; }
+  #phase-label { font-size:0.75rem; color:rgba(245,234,208,0.5); letter-spacing:3px; text-transform:uppercase; margin-top:4px; }
 
-/* WAITING SCREEN */
-.center-wrap { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:40px 24px; text-align:center; }
-.big-code { font-size:52px; font-weight:900; letter-spacing:8px; color:var(--text); margin:20px 0 10px; }
-.wait-sub { font-size:14px; color:var(--muted); line-height:1.7; max-width:260px; }
-.spinner { width:40px; height:40px; border:3px solid var(--border); border-top-color:var(--accent); border-radius:50%; animation:spin .8s linear infinite; margin:24px auto 0; }
-@keyframes spin { to{transform:rotate(360deg)} }
+  /* ── CARDS ── */
+  .card {
+    width:58px; height:84px; background:var(--card-bg); border-radius:6px;
+    border:1px solid #d4c5a0; display:flex; align-items:center; justify-content:center;
+    flex-direction:column; font-family:'Playfair Display',serif; font-size:1.1rem; font-weight:700;
+    box-shadow:0 3px 10px rgba(0,0,0,0.4),inset 0 1px 0 rgba(255,255,255,0.8);
+    position:relative; flex-shrink:0; animation:dealCard 0.3s ease-out;
+  }
+  @keyframes dealCard { from{transform:scale(0.5) rotateY(90deg);opacity:0} to{transform:scale(1) rotateY(0);opacity:1} }
+  .card.red { color:var(--red); } .card.black { color:var(--black); }
+  .card .corner-tl { position:absolute; top:4px; left:5px; text-align:left; line-height:1.1; font-size:0.65rem; }
+  .card .corner-br { position:absolute; bottom:4px; right:5px; text-align:right; line-height:1.1; font-size:0.65rem; transform:rotate(180deg); }
+  .card-back {
+    width:58px; height:84px; background:linear-gradient(135deg,#1a3a6e 0%,#0d1f4a 100%);
+    border-radius:6px; border:1px solid #2a4a8e; box-shadow:0 3px 10px rgba(0,0,0,0.4);
+    display:flex; align-items:center; justify-content:center; flex-shrink:0; position:relative; overflow:hidden;
+  }
+  .card-back::before {
+    content:''; position:absolute; inset:4px; border:1px solid rgba(255,255,255,0.15); border-radius:4px;
+    background:repeating-linear-gradient(45deg,transparent,transparent 4px,rgba(255,255,255,0.04) 4px,rgba(255,255,255,0.04) 8px);
+  }
+  .card-back::after { content:'♠'; color:rgba(255,255,255,0.15); font-size:1.5rem; }
+  .card-placeholder { width:58px; height:84px; border-radius:6px; border:2px dashed rgba(245,234,208,0.15); flex-shrink:0; }
 
-/* SENDER */
-.screen-header { padding:20px 20px 6px; text-align:center; }
-.screen-title { font-size:22px; font-weight:800; margin-bottom:4px; }
-.screen-sub { font-size:14px; color:var(--muted); line-height:1.5; }
-.role-badge {
-  display:inline-flex; align-items:center; gap:6px;
-  font-size:11px; font-weight:700; letter-spacing:.8px; text-transform:uppercase;
-  padding:5px 12px; border-radius:100px; margin-bottom:14px;
-  background:var(--accent-light); color:var(--accent);
-}
-.role-badge::before { content:''; width:6px; height:6px; border-radius:50%; background:currentColor; }
-.role-badge.r { background:#fff8e1; color:#b36b00; }
+  /* ── SEATS — 4-seat default layout ── */
+  .seat { position:absolute; display:flex; flex-direction:column; align-items:center; gap:6px; }
+  #seat-0 { bottom:-130px; left:50%; transform:translateX(-50%); }
+  #seat-1 { left:-180px; top:50%; transform:translateY(-50%); }
+  #seat-2 { top:-140px; left:50%; transform:translateX(-50%); }
+  #seat-3 { right:-180px; top:50%; transform:translateY(-50%); }
 
-.pick-grid { display:grid; gap:12px; padding:16px 16px 36px; }
-.pick-grid.g2 { grid-template-columns:1fr 1fr; }
-.pick-grid.g3 { grid-template-columns:1fr 1fr 1fr; }
-.pick-btn {
-  background:var(--card); border:1.5px solid var(--border); border-radius:var(--radius);
-  padding:20px 10px; cursor:pointer; touch-action:manipulation;
-  display:flex; flex-direction:column; align-items:center; gap:8px;
-  transition:transform .15s,border-color .15s; box-shadow:var(--shadow); font-family:inherit;
-}
-.pick-btn:active { transform:scale(.95); border-color:var(--accent); }
-.pick-btn.selected { border-color:var(--accent); background:var(--accent-light); }
-.pick-icon { font-size:34px; line-height:1; }
-.pick-num { font-size:36px; font-weight:900; color:var(--text); line-height:1; }
-.pick-label { font-size:12px; font-weight:600; color:var(--muted); }
+  /* ── SEATS — 6-seat layout override (applied via JS on #table) ── */
+  #table.six-seats #seat-0 { bottom:-130px; left:50%; transform:translateX(-50%); }
+  #table.six-seats #seat-1 { bottom:-90px;  left:-165px; transform:none; top:auto; right:auto; }
+  #table.six-seats #seat-2 { top:-130px;   left:-165px; transform:none; bottom:auto; right:auto; }
+  #table.six-seats #seat-3 { top:-140px;   left:50%; transform:translateX(-50%); right:auto; bottom:auto; }
+  #table.six-seats #seat-4 { top:-130px;   right:-165px; transform:none; left:auto; bottom:auto; }
+  #table.six-seats #seat-5 { bottom:-90px; right:-165px; transform:none; left:auto; top:auto; }
 
-/* SENDING */
-.pulse-ring {
-  width:96px; height:96px; border-radius:50%; background:var(--accent-light);
-  display:flex; align-items:center; justify-content:center; font-size:40px;
-  margin-bottom:28px; position:relative;
-}
-.pulse-ring::after,.pulse-ring::before {
-  content:''; position:absolute; border-radius:50%; border:2px solid var(--accent);
-  animation:ripple 1.6s ease-out infinite;
-}
-.pulse-ring::after { inset:-8px; opacity:.35; }
-.pulse-ring::before { inset:-18px; opacity:.15; animation-delay:.45s; }
-@keyframes ripple { 0%{transform:scale(.85);opacity:.5} 100%{transform:scale(1.2);opacity:0} }
-.dots { display:flex; gap:6px; margin-top:22px; }
-.dots span { width:7px; height:7px; border-radius:50%; background:var(--accent); animation:dot 1.4s infinite ease-in-out; }
-.dots span:nth-child(2){animation-delay:.2s} .dots span:nth-child(3){animation-delay:.4s}
-@keyframes dot { 0%,80%,100%{transform:scale(.3);opacity:.3} 40%{transform:scale(1);opacity:1} }
+  .player-info {
+    background:rgba(0,0,0,0.65); border:1px solid rgba(201,168,76,0.3);
+    border-radius:8px; padding:6px 12px; text-align:center; min-width:130px;
+    backdrop-filter:blur(4px); transition:border-color 0.3s,box-shadow 0.3s; position:relative;
+  }
+  .player-info.active { border-color:var(--gold); box-shadow:0 0 15px rgba(201,168,76,0.4); }
+  .player-info.folded { opacity:0.45; }
+  .player-info.is-you { border-color:rgba(100,200,100,0.5); }
+  .player-info.dealer::after {
+    content:'D'; position:absolute; top:-10px; right:-10px;
+    background:var(--gold); color:#000; font-size:0.65rem; font-weight:bold;
+    padding:2px 7px; border-radius:10px; letter-spacing:1px;
+  }
+  .player-info.small-blind::before {
+    content:'SB'; position:absolute; top:-10px; left:-10px;
+    background:#2980b9; color:#fff; font-size:0.55rem; font-weight:bold;
+    padding:2px 5px; border-radius:10px; letter-spacing:1px;
+  }
+  .player-info.big-blind::before {
+    content:'BB'; position:absolute; top:-10px; left:-10px;
+    background:#c0392b; color:#fff; font-size:0.55rem; font-weight:bold;
+    padding:2px 5px; border-radius:10px; letter-spacing:1px;
+  }
+  .player-name { font-family:'Playfair Display',serif; font-size:0.85rem; color:var(--gold-light); letter-spacing:1px; white-space:nowrap; }
+  .player-stack { font-size:0.8rem; color:var(--cream); font-weight:600; }
+  .player-bet { font-size:0.7rem; color:var(--gold); min-height:14px; }
+  .player-action-label { font-size:0.65rem; color:#7fba7f; text-transform:uppercase; letter-spacing:2px; min-height:12px; }
+  .player-cards { display:flex; gap:4px; }
 
-/* RECEIVER */
-.recv-top { padding:16px 16px 0; }
-.progress-wrap { height:5px; background:var(--border); border-radius:5px; overflow:hidden; margin-bottom:14px; }
-.progress-fill { height:100%; background:var(--accent); border-radius:5px; width:0%; }
-.focus-card {
-  background:linear-gradient(135deg,#5b5ef4,#8183f7); border-radius:var(--radius);
-  padding:18px; color:white; display:flex; align-items:center; gap:14px; margin:0 16px 4px;
-}
-.focus-card .fi { font-size:26px; }
-.focus-card .ft1 { font-size:12px; opacity:.8; margin-bottom:2px; }
-.focus-card .ft2 { font-size:15px; font-weight:700; }
-.guess-label { padding:14px 20px 8px; font-size:12px; font-weight:700; color:var(--muted); }
+  /* ── CONTROLS ── */
+  #controls {
+    position:absolute; bottom:10px; left:50%; transform:translateX(-50%);
+    display:flex; align-items:center; gap:10px;
+    background:rgba(0,0,0,0.75); border:1px solid rgba(201,168,76,0.3);
+    border-radius:12px; padding:14px 20px; backdrop-filter:blur(8px); z-index:100;
+  }
+  #raise-area { display:flex; align-items:center; gap:6px; }
+  #raise-input {
+    width:80px; background:rgba(255,255,255,0.08); border:1px solid rgba(201,168,76,0.4);
+    border-radius:4px; color:var(--cream); font-family:'Crimson Text',serif;
+    font-size:0.85rem; padding:6px 8px; text-align:center;
+  }
+  #raise-input:focus { outline:none; border-color:var(--gold); }
+  .raise-label { font-size:0.7rem; color:rgba(245,234,208,0.5); }
 
-/* RESULT */
-.result-check { width:88px; height:88px; border-radius:50%; background:#e8faf0; display:flex; align-items:center; justify-content:center; font-size:40px; margin-bottom:20px; animation:popIn .5s cubic-bezier(.34,1.56,.64,1) both; }
-@keyframes popIn { from{transform:scale(.2);opacity:0} to{transform:scale(1);opacity:1} }
-.result-title { font-size:28px; font-weight:800; margin-bottom:6px; }
-.result-sub { font-size:14px; color:var(--muted); text-align:center; line-height:1.6; }
-.result-card { margin-top:24px; background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:20px 28px; display:flex; align-items:center; gap:18px; box-shadow:var(--shadow); animation:popIn .5s .15s cubic-bezier(.34,1.56,.64,1) both; }
-.rc-icon { font-size:52px; line-height:1; }
-.rc-name { font-size:24px; font-weight:800; }
-.rc-meta { font-size:12px; color:var(--muted); margin-top:2px; }
-.again-btn { margin-top:28px; padding:14px 44px; background:var(--accent); color:white; border:none; border-radius:var(--radius); font-size:15px; font-weight:600; cursor:pointer; touch-action:manipulation; font-family:inherit; }
+  /* ── PANELS ── */
+  #stats-panel {
+    position:absolute; top:10px; left:10px; background:rgba(0,0,0,0.75);
+    border:1px solid rgba(201,168,76,0.3); border-radius:10px; padding:12px 16px;
+    backdrop-filter:blur(8px); z-index:100; min-width:150px;
+  }
+  #stats-panel h3 { font-family:'Playfair Display',serif; font-size:0.75rem; color:var(--gold); letter-spacing:2px; text-transform:uppercase; margin-bottom:8px; text-align:center; }
+  .stat-row { display:flex; justify-content:space-between; font-size:0.72rem; color:var(--cream); margin-bottom:4px; gap:10px; }
+  .stat-val { color:var(--gold-light); font-weight:600; }
 
-/* ERROR TOAST */
-.toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%); background:#1a1a2e; color:white; padding:12px 20px; border-radius:100px; font-size:13px; font-weight:500; z-index:300; opacity:0; transition:opacity .3s; pointer-events:none; white-space:nowrap; }
-.toast.show { opacity:1; }
+  #difficulty-panel {
+    position:absolute; top:10px; right:10px; background:rgba(0,0,0,0.80);
+    border:1px solid rgba(201,168,76,0.3); border-radius:10px; padding:12px 14px;
+    backdrop-filter:blur(8px); z-index:100; min-width:210px; max-width:230px;
+  }
+  #difficulty-panel h3 { font-family:'Playfair Display',serif; font-size:0.75rem; color:var(--gold); letter-spacing:2px; text-transform:uppercase; margin-bottom:10px; text-align:center; }
+  .diff-row { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; gap:8px; }
+  .diff-name-col { display:flex; flex-direction:column; gap:1px; flex:1; min-width:0; }
+  .diff-name { font-size:0.75rem; color:var(--cream); white-space:nowrap; }
+  .diff-style { font-size:0.60rem; color:rgba(201,168,76,0.55); white-space:nowrap; font-style:italic; }
+  .diff-select {
+    background:rgba(255,255,255,0.06); border:1px solid rgba(201,168,76,0.3);
+    border-radius:4px; color:var(--cream); font-family:'Crimson Text',serif;
+    font-size:0.75rem; padding:3px 6px; cursor:pointer; width:70px; flex-shrink:0;
+  }
 
-/* PEEK */
-.peek-overlay { position:fixed; inset:0; background:rgba(15,15,30,.93); display:flex; align-items:center; justify-content:center; z-index:999; pointer-events:none; animation:fadeIn .2s ease; }
-@keyframes fadeIn { from{opacity:0} to{opacity:1} }
-.peek-card { background:var(--card); border-radius:24px; padding:32px 44px; text-align:center; min-width:230px; box-shadow:0 20px 60px rgba(0,0,0,.4); }
-.peek-tag { font-size:10px; font-weight:700; letter-spacing:2px; color:var(--muted); text-transform:uppercase; margin-bottom:14px; }
-.peek-icon { font-size:72px; line-height:1; margin-bottom:10px; }
-.peek-name { font-size:26px; font-weight:800; }
-.peek-bar { height:3px; background:var(--border); border-radius:3px; overflow:hidden; margin-top:22px; }
-.peek-bar-fill { height:100%; background:var(--accent); animation:drain 1s linear forwards; }
-@keyframes drain { from{width:100%} to{width:0%} }
+  /* ── MESSAGE ── */
+  #message-bar {
+    position:absolute; top:10px; left:50%; transform:translateX(-50%);
+    background:rgba(0,0,0,0.8); border:1px solid rgba(201,168,76,0.4);
+    border-radius:8px; padding:10px 24px; font-family:'Playfair Display',serif;
+    font-size:0.9rem; color:var(--gold-light); letter-spacing:1px; text-align:center;
+    z-index:200; backdrop-filter:blur(8px); max-width:420px; white-space:nowrap;
+  }
 
-/* HOLD RING */
-.hold-ring { position:fixed; top:8px; right:8px; width:48px; height:48px; pointer-events:none; z-index:500; display:none; }
-.hold-ring circle { fill:none; stroke:var(--accent); stroke-width:2.5; stroke-linecap:round; stroke-dasharray:120; stroke-dashoffset:120; transform-origin:center; transform:rotate(-90deg); transition:stroke-dashoffset .05s linear; }
+  /* ── OVERLAYS ── */
+  #winner-overlay {
+    position:absolute; inset:0; background:rgba(0,0,0,0.85);
+    display:none; align-items:center; justify-content:center; z-index:300; flex-direction:column; gap:20px;
+  }
+  #winner-overlay.show { display:flex; }
+  #winner-box {
+    background:linear-gradient(135deg,#1a2e1a,#0d1f0d); border:2px solid var(--gold);
+    border-radius:16px; padding:40px 60px; text-align:center;
+    box-shadow:0 0 60px rgba(201,168,76,0.3); max-width:480px;
+  }
+  #winner-title { font-family:'Playfair Display',serif; font-size:2rem; color:var(--gold-light); margin-bottom:8px; }
+  #winner-hand { font-size:1rem; color:var(--cream); margin-bottom:16px; opacity:0.8; }
+  #winner-cards { display:flex; gap:6px; justify-content:center; margin-bottom:20px; flex-wrap:wrap; }
+  #winner-amount { font-family:'Playfair Display',serif; font-size:1.4rem; color:#7fba7f; margin-bottom:24px; }
+
+  #bust-overlay {
+    display:none; position:absolute; inset:0; background:rgba(0,0,0,0.9);
+    align-items:center; justify-content:center; z-index:400; flex-direction:column; gap:20px;
+  }
+  #bust-box {
+    background:linear-gradient(135deg,#2e1a1a,#1a0d0d); border:2px solid #c0392b;
+    border-radius:16px; padding:40px 60px; text-align:center;
+    box-shadow:0 0 60px rgba(192,57,43,0.4); max-width:420px;
+  }
+
+  /* ── NETWORK BADGE ── */
+  #net-badge {
+    position:absolute; bottom:70px; right:10px;
+    background:rgba(0,0,0,0.7); border:1px solid rgba(201,168,76,0.2);
+    border-radius:8px; padding:6px 12px; font-size:0.7rem; z-index:100;
+  }
+  #net-status { color:#27ae60; }
+  #room-badge {
+    position:absolute; bottom:100px; right:10px;
+    background:rgba(0,0,0,0.7); border:1px solid rgba(201,168,76,0.2);
+    border-radius:8px; padding:6px 12px; font-size:0.7rem; z-index:100;
+    color:var(--gold-light); letter-spacing:2px; cursor:pointer;
+  }
+
+
+  /* ── CHAT ── */
+  #chat-panel {
+    position:absolute; bottom:70px; left:10px;
+    width:240px; background:rgba(0,0,0,0.82);
+    border:1px solid rgba(201,168,76,0.25); border-radius:10px;
+    backdrop-filter:blur(8px); z-index:100;
+    display:none; flex-direction:column; overflow:hidden;
+    box-shadow:0 4px 20px rgba(0,0,0,0.5);
+  }
+  #chat-header {
+    display:flex; align-items:center; justify-content:space-between;
+    padding:8px 12px; border-bottom:1px solid rgba(201,168,76,0.15);
+    cursor:pointer; user-select:none;
+  }
+  #chat-header-title {
+    font-family:'Playfair Display',serif; font-size:0.72rem;
+    color:var(--gold); letter-spacing:2px; text-transform:uppercase;
+  }
+  #chat-unread {
+    background:#c0392b; color:#fff; font-size:0.6rem; font-weight:bold;
+    padding:1px 6px; border-radius:10px; display:none;
+  }
+  #chat-toggle-icon { font-size:0.7rem; color:rgba(245,234,208,0.4); }
+  #chat-body { display:flex; flex-direction:column; }
+  #chat-messages {
+    height:160px; overflow-y:auto; padding:8px 10px;
+    display:flex; flex-direction:column; gap:4px;
+    scrollbar-width:thin; scrollbar-color:rgba(201,168,76,0.2) transparent;
+  }
+  #chat-messages::-webkit-scrollbar { width:4px; }
+  #chat-messages::-webkit-scrollbar-thumb { background:rgba(201,168,76,0.2); border-radius:2px; }
+  .chat-msg { font-size:0.75rem; line-height:1.4; word-break:break-word; }
+  .chat-msg .chat-sender { color:var(--gold); font-weight:600; margin-right:4px; }
+  .chat-msg.me .chat-sender { color:#7fba7f; }
+  .chat-msg.system { color:rgba(245,234,208,0.35); font-style:italic; font-size:0.7rem; }
+  #chat-input-row {
+    display:flex; gap:0; border-top:1px solid rgba(201,168,76,0.15);
+  }
+  #chat-input {
+    flex:1; background:transparent; border:none;
+    color:var(--cream); font-family:'Crimson Text',serif; font-size:0.82rem;
+    padding:7px 10px; outline:none;
+  }
+  #chat-input::placeholder { color:rgba(245,234,208,0.25); }
+  #chat-send {
+    background:transparent; border:none; border-left:1px solid rgba(201,168,76,0.15);
+    color:var(--gold); font-size:0.9rem; padding:0 10px; cursor:pointer;
+    transition:background 0.15s;
+  }
+  #chat-send:hover { background:rgba(201,168,76,0.08); }
+  #chat-panel.collapsed #chat-body { display:none; }
+
+  /* ── MAIN MENU BUTTON ── */
+  #btn-main-menu {
+    position:absolute; top:10px; left:50%; transform:translateX(-50%) translateX(200px);
+    z-index:150;
+  }
+
+  /* ═══════════════════════════════════════════════════════════
+     MOBILE RESPONSIVE
+     ═══════════════════════════════════════════════════════════ */
+  @media (max-width: 860px) {
+
+    body { padding-top: 0; justify-content: flex-start; overflow-y: auto; min-height: 100vh; }
+
+    #game-wrapper {
+      flex-direction: column !important;
+      align-items: center !important;
+      justify-content: flex-start !important;
+      min-height: 100vh;
+      padding-bottom: 16px;
+    }
+
+    /* Table scene: shrink to fit viewport */
+    #table-scene {
+      /* width/height/transform set by JS */
+      flex-shrink: 0;
+    }
+
+    /* All absolute panels → relative flow */
+    #stats-panel {
+      position: relative !important;
+      top: auto; left: auto;
+      order: 2;
+      display: flex !important;
+      flex-direction: row;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: center;
+      gap: 8px 16px;
+      width: 92%;
+      min-width: 0;
+      padding: 8px 12px;
+      margin-top: 6px;
+    }
+    #stats-panel h3 { display: none; }
+    .stat-row { margin-bottom: 0; font-size: 0.7rem; }
+
+    #message-bar {
+      position: relative !important;
+      top: auto; left: auto; transform: none;
+      order: 1;
+      width: 92%;
+      font-size: 0.78rem;
+      padding: 8px 14px;
+      white-space: normal;
+      text-align: center;
+      margin-top: 8px;
+    }
+
+    #table-scene { order: 3; }
+
+    #difficulty-panel {
+      position: relative !important;
+      top: auto; right: auto;
+      order: 5;
+      width: 92%;
+      min-width: 0; max-width: 100%;
+      margin: 6px auto 0 auto;
+    }
+    .diff-row { flex-wrap: nowrap; }
+    .diff-select { width: 80px; }
+
+    #controls {
+      position: relative !important;
+      bottom: auto; left: auto; transform: none;
+      order: 6;
+      width: 92%;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 6px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      margin: 4px auto 0 auto;
+    }
+    #raise-area {
+      width: 100%;
+      justify-content: center;
+      order: 99;
+    }
+    .btn { font-size: 0.78rem; padding: 9px 14px; }
+
+    #chat-panel {
+      position: relative !important;
+      bottom: auto; left: auto;
+      order: 7;
+      width: 92%;
+      margin: 6px auto 0 auto;
+    }
+    #chat-messages { height: 100px; }
+
+    #net-badge, #room-badge {
+      position: relative !important;
+      bottom: auto; right: auto;
+      order: 8;
+      display: inline-block;
+      margin: 4px 4px 0 4px;
+    }
+
+    #btn-main-menu {
+      position: absolute !important;
+      top: 8px;
+      right: 8px;
+      left: auto;
+      transform: none;
+      order: 0;
+      z-index: 200;
+    }
+
+    /* Overlays: fixed so they cover the full mobile screen */
+    #winner-overlay, #bust-overlay {
+      position: fixed !important;
+    }
+
+    #winner-box, #bust-box {
+      padding: 28px 24px;
+      margin: 0 16px;
+      width: calc(100% - 32px);
+      max-width: 360px;
+    }
+    #winner-title { font-size: 1.5rem; }
+    #winner-cards { flex-wrap: wrap; justify-content: center; }
+  }
+
+  @media (max-width: 480px) {
+    #controls { gap: 5px; padding: 8px; }
+    .btn { font-size: 0.72rem; padding: 8px 10px; }
+    #raise-input { width: 65px; }
+    .raise-label { display: none; }
+  }
 </style>
 </head>
 <body>
-<div id="app">
 
-  <!-- NAV -->
-  <div class="nav">
-    <div class="nav-logo">Simple<span>Telepathy</span></div>
-    <div class="nav-right">
-      <div class="conn-pill offline" id="conn-pill"><span class="dot"></span><span id="conn-label">Offline</span></div>
-      <!-- Long-press this to peek (only works on receiver screen) -->
-      <div class="nav-signal" id="nav-signal"
-        onmousedown="startHold()" onmouseup="endHold()" onmouseleave="endHold()"
-        ontouchstart="startHold(event)" ontouchend="endHold()" ontouchcancel="endHold()">
-        <div class="bar" id="b1"></div>
-        <div class="bar" id="b2"></div>
-        <div class="bar" id="b3"></div>
+<!-- ══════════════ LOBBY ══════════════ -->
+<div id="lobby">
+  <h1>♠ Hold'em ♠</h1>
+  <p class="subtitle">TEXAS HOLD'EM — MULTIPLAYER</p>
+
+  <div class="lobby-section">
+    <h3>Your Name</h3>
+    <input class="lobby-input" id="player-name-input" placeholder="Enter your name" maxlength="12">
+  </div>
+
+  <hr class="lobby-divider">
+
+  <div class="lobby-section" id="create-section">
+    <h3>Host a Table</h3>
+    <button class="btn btn-gold" onclick="hostGame()" id="btn-host">Create Room</button>
+    <div id="host-room-area" style="display:none;margin-top:14px;">
+      <div>Room Code:</div>
+      <div id="room-code-display" onclick="copyRoomCode()" title="Click to copy">????</div>
+      <div class="copy-hint">Click to copy · Share with friends</div>
+      <div id="waiting-players"></div>
+      <div id="ai-seat-config" style="margin-top:12px;text-align:left;">
+        <div style="font-size:0.72rem;color:var(--gold);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;">AI Seats</div>
+        <div id="ai-seat-rows"></div>
+        <div style="font-size:0.65rem;color:rgba(245,234,208,0.35);margin-top:4px;">Disabled seats stay empty</div>
+      </div>
+      <div style="margin-top:14px;">
+        <button class="btn btn-gold" id="btn-start-game" onclick="startMultiplayerGame()" disabled>Start Game</button>
+        <div style="font-size:0.7rem;color:rgba(245,234,208,0.4);margin-top:6px;">Need at least 2 players</div>
       </div>
     </div>
   </div>
 
-  <!-- HOME (receiver side — you are the magician) -->
-  <div class="screen active" id="s-home">
-    <div class="home-hero">
-      <h1 class="home-title">Simple<br><span>Telepathy</span> Test</h1>
-      <p class="home-sub">A simple game of mind-reading.</p>
-    </div>
-    <div class="code-card">
-      <div class="code-label">My Connect Code</div>
-      <div class="code-row">
-        <div class="code-value" id="connect-code">····</div>
-        <div class="code-status" id="code-status">Generating…</div>
-      </div>
-    </div>
-    <div class="divider-or">or connect to another device</div>
-    <div class="connect-row">
-      <input class="connect-input" id="code-input" type="tel" inputmode="numeric" maxlength="4" placeholder="Enter code">
-      <button class="join-btn" id="join-btn" onclick="joinAsReceiver()" disabled>Join</button>
-    </div>
-    <div class="section-label">Choose a category</div>
-    <div class="cat-grid">
-      <div class="cat-card" onclick="startCat('colors')">
-        <span class="cat-icon">🎨</span>
-        <div class="cat-name">COLORS</div><div class="cat-desc">Pick the right color</div>
-      </div>
-      <div class="cat-card" onclick="startCat('animals')">
-        <span class="cat-icon">🦁</span>
-        <div class="cat-name">ANIMALS</div><div class="cat-desc">Pick the right animal</div>
-      </div>
-      <div class="cat-card" onclick="startCat('numbers')">
-        <span class="cat-icon">42</span>
-        <div class="cat-name">NUMBERS</div><div class="cat-desc">Guess the secret number</div>
-      </div>
-      <div class="cat-card" onclick="startCat('suits')">
-        <span class="cat-icon">♠</span>
-        <div class="cat-name">CARD SUITS</div><div class="cat-desc">Pick the right suit</div>
-      </div>
-    </div>
+  <hr class="lobby-divider">
+
+  <div class="lobby-section">
+    <h3>Join a Table</h3>
+    <input class="lobby-input" id="room-code-input" placeholder="Enter room code" maxlength="6" style="margin-bottom:10px;text-transform:uppercase;letter-spacing:4px;">
+    <br>
+    <button class="btn btn-blue" onclick="joinGame()" id="btn-join">Join Room</button>
   </div>
 
-  <!-- WAITING FOR SENDER -->
-  <div class="screen" id="s-waiting">
-    <div class="center-wrap">
-      <p style="font-size:13px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;font-weight:600">Your connect code</p>
-      <div class="big-code" id="big-code">····</div>
-      <p class="wait-sub">Share this code with the sender. Waiting for them to connect…</p>
-      <div class="spinner"></div>
-    </div>
-  </div>
+  <div id="lobby-status"></div>
+  <div id="lobby-error"></div>
 
-  <!-- SENDER SCREEN (volunteer — entered a code) -->
-  <div class="screen" id="s-sender">
-    <div class="screen-header">
-      <div class="role-badge">Sender</div>
-      <div class="screen-title" id="sender-title">Pick a color</div>
-      <div class="screen-sub">Focus on your choice and hold it firmly in your mind.</div>
-    </div>
-    <div class="pick-grid g2" id="pick-grid"></div>
+  <hr class="lobby-divider">
+  <div style="font-size:0.72rem;color:rgba(245,234,208,0.3);">
+    Or play solo vs AI below ↓
   </div>
-
-  <!-- SENDING ANIMATION -->
-  <div class="screen" id="s-sending">
-    <div class="center-wrap">
-      <div class="pulse-ring" id="sending-emoji">🧠</div>
-      <div style="font-size:22px;font-weight:700;margin-bottom:8px">Transmitting…</div>
-      <div style="font-size:14px;color:var(--muted);line-height:1.6;max-width:240px">Sending your thought to the receiver. Please stay focused.</div>
-      <div class="dots"><span></span><span></span><span></span></div>
-    </div>
-  </div>
-
-  <!-- SENT CONFIRMATION (sender device — two-device mode) -->
-  <div class="screen" id="s-sent">
-    <div class="center-wrap">
-      <div style="font-size:72px;margin-bottom:20px">🔒</div>
-      <div style="font-size:22px;font-weight:800;margin-bottom:8px">Thought Sent</div>
-      <div style="font-size:14px;color:var(--muted);line-height:1.7;max-width:260px;text-align:center">
-        Your choice has been transmitted.<br>Wait for the receiver to reveal their answer.
-      </div>
-    </div>
-  </div>
-
-  <!-- RECEIVER SCREEN (magician guesses) -->
-  <div class="screen" id="s-receiver">
-    <div class="recv-top">
-      <div class="role-badge r" style="display:inline-flex;margin-bottom:12px">Receiver</div>
-      <div class="progress-wrap"><div class="progress-fill" id="prog"></div></div>
-    </div>
-    <div class="focus-card">
-      <div class="fi">📡</div>
-      <div><div class="ft1">Signal received — reading now…</div><div class="ft2">Select what you sense</div></div>
-    </div>
-    <div class="guess-label">What did the sender choose?</div>
-    <div class="pick-grid g2" id="guess-grid"></div>
-  </div>
-
-  <!-- RESULT -->
-  <div class="screen" id="s-result">
-    <div class="center-wrap">
-      <div class="result-check" id="result-check">✓</div>
-      <div class="result-title" id="result-title">Correct!</div>
-      <div class="result-sub" id="result-sub">The receiver successfully read the sender's thought.</div>
-      <div class="result-card">
-        <div class="rc-icon" id="r-icon"></div>
-        <div><div class="rc-name" id="r-name"></div><div class="rc-meta" id="rc-meta">Sender &amp; receiver matched</div></div>
-      </div>
-      <button class="again-btn" onclick="restart()">Try Again</button>
-    </div>
-  </div>
-
+  <button class="btn btn-check" style="margin-top:10px;" onclick="startSoloGame()">Play Solo vs AI</button>
 </div>
 
-<!-- PEEK OVERLAY -->
-<div class="peek-overlay" id="peek" style="display:none">
-  <div class="peek-card">
-    <div class="peek-tag">They chose</div>
-    <div class="peek-icon" id="p-icon"></div>
-    <div class="peek-name" id="p-name"></div>
-    <div class="peek-bar"><div class="peek-bar-fill" id="p-fill"></div></div>
+<!-- ══════════════ GAME ══════════════ -->
+<div id="game-wrapper">
+
+  <!-- Table scene (scaled on mobile) -->
+  <div id="table-scene">
+    <div id="table">
+      <div id="community-area">
+        <div id="pot-display">POT: $0</div>
+        <div id="community-cards">
+          <div class="card-placeholder"></div><div class="card-placeholder"></div>
+          <div class="card-placeholder"></div><div class="card-placeholder"></div>
+          <div class="card-placeholder"></div>
+        </div>
+        <div id="phase-label">WAITING</div>
+        <button class="btn btn-deal" id="btn-host-deal" onclick="hostDeal()" style="display:none; margin-top:6px;">Deal Hand</button>
+      </div>
+      <div class="seat" id="seat-0">
+        <div class="player-cards" id="cards-0"></div>
+        <div class="player-info" id="info-0">
+          <div class="player-name" id="pname-0">You</div>
+          <div class="player-stack" id="stack-0">$10,000</div>
+          <div class="player-bet" id="bet-0"></div>
+          <div class="player-action-label" id="action-label-0"></div>
+        </div>
+      </div>
+      <div class="seat" id="seat-1">
+        <div class="player-info" id="info-1">
+          <div class="player-name" id="pname-1">Seat 2</div>
+          <div class="player-stack" id="stack-1">$10,000</div>
+          <div class="player-bet" id="bet-1"></div>
+          <div class="player-action-label" id="action-label-1"></div>
+        </div>
+        <div class="player-cards" id="cards-1"></div>
+      </div>
+      <div class="seat" id="seat-2">
+        <div class="player-cards" id="cards-2"></div>
+        <div class="player-info" id="info-2">
+          <div class="player-name" id="pname-2">Seat 3</div>
+          <div class="player-stack" id="stack-2">$10,000</div>
+          <div class="player-bet" id="bet-2"></div>
+          <div class="player-action-label" id="action-label-2"></div>
+        </div>
+      </div>
+      <div class="seat" id="seat-3">
+        <div class="player-info" id="info-3">
+          <div class="player-name" id="pname-3">Seat 4</div>
+          <div class="player-stack" id="stack-3">$10,000</div>
+          <div class="player-bet" id="bet-3"></div>
+          <div class="player-action-label" id="action-label-3"></div>
+        </div>
+        <div class="player-cards" id="cards-3"></div>
+      </div>
+      <div class="seat" id="seat-4" style="display:none;">
+        <div class="player-info" id="info-4">
+          <div class="player-name" id="pname-4">Seat 5</div>
+          <div class="player-stack" id="stack-4">$10,000</div>
+          <div class="player-bet" id="bet-4"></div>
+          <div class="player-action-label" id="action-label-4"></div>
+        </div>
+        <div class="player-cards" id="cards-4"></div>
+      </div>
+      <div class="seat" id="seat-5" style="display:none;">
+        <div class="player-info" id="info-5">
+          <div class="player-name" id="pname-5">Seat 6</div>
+          <div class="player-stack" id="stack-5">$10,000</div>
+          <div class="player-bet" id="bet-5"></div>
+          <div class="player-action-label" id="action-label-5"></div>
+        </div>
+        <div class="player-cards" id="cards-5"></div>
+      </div>
+    </div>
+  </div><!-- /#table-scene -->
+
+  <!-- Stats -->
+  <div id="stats-panel" style="display:none;">
+    <h3>Stats</h3>
+    <div class="stat-row"><span>Hands</span><span class="stat-val" id="stat-hands">0</span></div>
+    <div class="stat-row"><span>Wins</span><span class="stat-val" id="stat-wins">0</span></div>
+    <div class="stat-row"><span>Best Pot</span><span class="stat-val" id="stat-biggest">$0</span></div>
+    <div class="stat-row"><span>Net P&amp;L</span><span class="stat-val" id="stat-pnl">$0</span></div>
+
   </div>
-</div>
 
-<!-- HOLD RING -->
-<svg class="hold-ring" id="hold-ring">
-  <circle cx="24" cy="24" r="19" id="hold-circle"/>
-</svg>
+  <!-- Difficulty -->
+  <div id="difficulty-panel" style="display:none;">
+    <h3>AI Difficulty</h3>
+    <div id="diff-rows"></div>
+  </div>
 
-<div class="toast" id="toast"></div>
+  <!-- Message -->
+  <div id="message-bar" style="display:none;">Welcome!</div>
+
+  <!-- Net badge -->
+  <div id="room-badge" style="display:none;" onclick="copyRoomCode()">ROOM: ????</div>
+  <div id="net-badge" style="display:none;"><span id="net-status">●</span> <span id="net-label">Connected</span></div>
+
+
+  <!-- Controls -->
+  <div id="controls" style="display:none;">
+    <button class="btn btn-fold" id="btn-fold" onclick="playerAction('fold')" disabled>Fold</button>
+    <button class="btn btn-check" id="btn-check" onclick="playerAction('check')" disabled>Check</button>
+    <button class="btn btn-call" id="btn-call" onclick="playerAction('call')" disabled>Call $0</button>
+    <div id="raise-area">
+      <span class="raise-label">Raise:</span>
+      <input type="number" id="raise-input" value="200" min="0" step="50">
+      <button class="btn btn-raise" id="btn-raise" onclick="playerAction('raise')" disabled>Raise</button>
+    </div>
+    <button class="btn btn-allin" id="btn-allin" onclick="playerAction('allin')" disabled>All-In</button>
+  </div>
+
+  <!-- Winner Overlay -->
+  <div id="winner-overlay">
+    <div id="winner-box">
+      <div id="winner-title">🏆 Winner!</div>
+      <div id="winner-hand"></div>
+      <div id="winner-cards"></div>
+      <div id="winner-amount"></div>
+      <button class="btn btn-deal" id="btn-next-hand" onclick="nextHand()">Next Hand</button>
+    </div>
+  </div>
+
+  <!-- Bust Overlay -->
+  <div id="bust-overlay">
+    <div id="bust-box">
+      <div style="font-family:'Playfair Display',serif;font-size:2.2rem;color:#e07070;margin-bottom:10px;">💸 Busted!</div>
+      <div style="font-size:1rem;color:var(--cream);opacity:0.75;margin-bottom:8px;">You've run out of chips.</div>
+      <div id="bust-stats" style="font-size:0.85rem;color:var(--gold-light);margin-bottom:28px;line-height:1.8;"></div>
+      <button class="btn btn-deal" onclick="newGame()">New Game</button>
+    </div>
+  </div>
+
+  <!-- Game-Over Overlay (solo win / multiplayer game end) -->
+  <div id="gameover-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.82);z-index:120;display:none;align-items:center;justify-content:center;">
+    <div id="gameover-box" style="background:linear-gradient(135deg,#0d1f15,#060e0a);border:2px solid var(--gold-dark);border-radius:16px;padding:40px 50px;text-align:center;box-shadow:0 0 60px rgba(201,168,76,0.25);max-width:400px;width:90%;">
+      <div id="gameover-title" style="font-family:'Playfair Display',serif;font-size:2.2rem;color:var(--gold-light);margin-bottom:10px;"></div>
+      <div id="gameover-subtitle" style="font-size:1rem;color:var(--cream);opacity:0.75;margin-bottom:8px;"></div>
+      <div id="gameover-stats" style="font-size:0.85rem;color:var(--gold-light);margin-bottom:28px;line-height:1.8;"></div>
+      <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+        <button id="gameover-btn-newgame" class="btn btn-deal" onclick="newGame()" style="display:none;">New Game</button>
+        <button class="btn" style="background:rgba(0,0,0,0.7);border:1px solid rgba(201,168,76,0.3);color:var(--gold-light);font-size:0.82rem;padding:10px 20px;" onclick="goToMainMenu()">⬅ Main Menu</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Menu Button -->
+  <div id="btn-main-menu" style="display:none;">
+    <button class="btn" style="background:rgba(0,0,0,0.7);border:1px solid rgba(201,168,76,0.3);color:var(--gold-light);font-size:0.72rem;padding:6px 14px;" onclick="goToMainMenu()">⬅ Menu</button>
+  </div>
+
+</div><!-- /#game-wrapper -->
 
 <script>
-const CATS = {
-  colors:  { title:'Pick a color',     cols:'g2', items:[{e:'🔴',l:'Red'},{e:'🔵',l:'Blue'},{e:'🟡',l:'Yellow'},{e:'🟢',l:'Green'},{e:'🟣',l:'Purple'},{e:'🟠',l:'Orange'}] },
-  animals: { title:'Pick an animal',   cols:'g2', items:[{e:'🦁',l:'Lion'},{e:'🐺',l:'Wolf'},{e:'🦅',l:'Eagle'},{e:'🦊',l:'Fox'},{e:'🐬',l:'Dolphin'},{e:'🦉',l:'Owl'}] },
-  numbers: { title:'Pick a number',    cols:'g3', items:[{e:'1',l:'1'},{e:'2',l:'2'},{e:'3',l:'3'},{e:'4',l:'4'},{e:'5',l:'5'},{e:'6',l:'6'},{e:'7',l:'7'},{e:'8',l:'8'},{e:'9',l:'9'}] },
-  suits:   { title:'Pick a card suit', cols:'g2', items:[{e:'♠',l:'Spades'},{e:'♥',l:'Hearts'},{e:'♦',l:'Diamonds'},{e:'♣',l:'Clubs'}] }
-};
+// ═══════════════════════════════════════════════════════════
+//  CONSTANTS
+// ═══════════════════════════════════════════════════════════
+const SUITS = ['♠','♥','♦','♣'];
+const RANKS = ['2','3','4','5','6','7','8','9','10','J','Q','K','A'];
+const RANK_VAL = {'2':2,'3':3,'4':4,'5':5,'6':6,'7':7,'8':8,'9':9,'10':10,'J':11,'Q':12,'K':13,'A':14};
+const HAND_NAMES = ['High Card','One Pair','Two Pair','Three of a Kind','Straight','Flush','Full House','Four of a Kind','Straight Flush','Royal Flush'];
+const BIG_BLIND = 100, SMALL_BLIND = 50;
+const STARTING_STACK = 10000;
+const CHAT_MAX_LEN = 150;   // F-05: single source of truth for chat message length
 
-let myPeer = null, senderConn = null, receiverConn = null;
-let cat = null, chosen = null, myRole = null; // 'sender' | 'receiver'
-let holdTimer = null, holdProg = 0;
-const HOLD = 500;
-let progTimer = null;
+// ═══════════════════════════════════════════════════════════
+//  DOM CACHE — query once, never again
+//  All getElementById/querySelector calls during gameplay route through here.
+// ═══════════════════════════════════════════════════════════
+const EL = {};
+function buildDOMCache() {
+  const ids = [
+    'lobby','lobby-status','lobby-error','host-room-area','room-code-display',
+    'waiting-players','ai-seat-rows','btn-host','btn-join','btn-start-game',
+    'room-code-input','player-name-input',
+    'game-wrapper','table','table-scene',
+    'pot-display','phase-label','community-cards',
+    'message-bar','controls','stats-panel','difficulty-panel','diff-rows',
+    'btn-host-deal','btn-next-hand','btn-main-menu',
+    'btn-fold','btn-check','btn-call','btn-raise','btn-allin','raise-input','raise-area',
+    'stat-hands','stat-wins','stat-biggest','stat-pnl','stat-fold-worse','stat-bluffs',
+    'room-badge','net-badge',
+    'winner-overlay','winner-title','winner-hand','winner-amount','winner-cards',
+    'bust-overlay','bust-stats',
+    'gameover-overlay','gameover-title','gameover-subtitle','gameover-stats','gameover-btn-newgame',
+    'chat-panel','chat-messages','chat-input','chat-send','chat-header-title',
+    'chat-unread','chat-toggle-icon',
+  ];
+  ids.forEach(id => { EL[id] = document.getElementById(id); });
+  // Per-seat elements — cached as arrays indexed by seat
+  EL.pname = []; EL.stack = []; EL.bet = []; EL.info = [];
+  EL.cards = []; EL.actionLabel = [];
+  for (let i = 0; i < 6; i++) {
+    EL.pname[i]       = document.getElementById(`pname-${i}`);
+    EL.stack[i]       = document.getElementById(`stack-${i}`);
+    EL.bet[i]         = document.getElementById(`bet-${i}`);
+    EL.info[i]        = document.getElementById(`info-${i}`);
+    EL.cards[i]       = document.getElementById(`cards-${i}`);
+    EL.actionLabel[i] = document.getElementById(`action-label-${i}`);
+  }
+}
+let peer = null;           // PeerJS instance
+let isHost = false;
+let isSolo = false;
+let MAX_SEATS = 4;          // 4 for solo, 6 for multiplayer
+let disabledAISeats = new Set(); // AI seats turned off by host in lobby
+// sessionSecret: Uint8Array(32), set by host in hostGame() or by client via applySessionSecret()
+let myName = 'You';
+let mySeatIdx = 0;         // which seat index (0-3) am I sitting in
+let myRoomCode = '';
+let hostConn = null;       // client -> host connection
+let clientConns = [];      // host -> clients connections array [{conn, seatIdx, name}]
+let humanSeats = [];       // seat indices occupied by humans [0..3]
+let _ecdhPeerPublicKey = null;  // F-01: client stores the host's imported ECDH public key
+let sessionSecret = null;       // Uint8Array(32) — derived via ECDH, never transmitted in plaintext
 
-// ── PEER SETUP ──────────────────────────────────────────────────────────────
-function initPeer() {
-  const code = Math.floor(1000 + Math.random() * 9000).toString();
-  const peerId = 'stt-' + code;
-  myPeer = new Peer(peerId);
+// ═══════════════════════════════════════════════════════════
+//  GAME STATE (authoritative on host / solo)
+// ═══════════════════════════════════════════════════════════
+let deck = [];
+let players = [];          // [{id,name,stack,hand,bet,folded,allIn,isAI}]
+let communityCards = [];
+let pot = 0;
+let currentBet = 0;
+let phase = 'waiting';
+let currentPlayerIdx = 0;
+let dealerIdx = 0;
+let smallBlindIdx, bigBlindIdx;
+let handInProgress = false;
+let playersToAct = [];
+let stats = { hands:0, wins:0, biggest:0, startStack:STARTING_STACK,
+              foldedToWorse:0, successfulBluffs:0 };
 
-  myPeer.on('open', () => {
-    document.getElementById('connect-code').textContent = code;
-    document.getElementById('code-status').textContent = 'Ready';
-    setSignal(2);
-    setConnPill('waiting', 'Waiting');
-  });
+// Per-hand tracking for post-game analysis
+// foldSnapshot: recorded when the player folds — preserves their hole cards + community at fold time
+let foldSnapshot = null;   // { hand: [...], community: [...], phase } | null
+let npcThinkTimeout = null;
+let runOutTimeout = null;
 
-  myPeer.on('connection', (conn) => {
-    // Someone connected to us — we are the receiver (magician)
-    myRole = 'receiver';
-    senderConn = conn;
-    setConnPill('connected', 'Connected');
-    setSignal(3);
-    conn.on('data', (data) => {
-      // Sender picked something
-      cat = data.cat;
-      chosen = data.item;
-      buildGrid('guess-grid', CATS[cat].items, CATS[cat].cols, 'receiverGuess');
-      animateProgress();
-      show('s-receiver');
+// ═══════════════════════════════════════════════════════════
+//  LOBBY
+// ═══════════════════════════════════════════════════════════
+function getPlayerName() {
+  const n = document.getElementById('player-name-input').value.trim();
+  return n || 'Player';
+}
+
+function lobbyStatus(msg, isError=false) {
+  document.getElementById(isError ? 'lobby-error' : 'lobby-status').textContent = msg;
+  if (!isError) document.getElementById('lobby-error').textContent = '';
+}
+
+
+function joinGame() {
+  myName = getPlayerName();
+  const code = document.getElementById('room-code-input').value.trim().toUpperCase().replace(/[^A-Z0-9]/g,'');
+  if (!myName) { lobbyStatus('Please enter your name.', true); return; }
+  if (code.length < 6) { lobbyStatus('Enter a valid room code.', true); return; }
+  document.getElementById('btn-join').disabled = true;
+  connectWithCode(code);
+}
+
+function connectWithCode(code) {
+  myName = getPlayerName();
+  // F-08: defaults to peerjs.com public signaling server.
+  // For production, self-host: `npm install -g peer && peerjs --port 9000`
+  // then pass { host:'your-server', port:9000, path:'/' } as the second Peer() argument.
+  peer = new Peer(null, { debug: 0 });
+  peer.on('open', () => {
+    const hostPeerId = 'holdem-' + code;
+    const conn = peer.connect(hostPeerId, { reliable: true });
+    hostConn = conn;
+
+    conn.on('open', () => {
+      lobbyStatus('Connected! Waiting for host to start…');
+      conn.send({ type:'setName', name: myName });
     });
-    conn.on('close', () => { setConnPill('offline','Disconnected'); setSignal(0); });
-    show('s-waiting'); // stay here until they pick
-    document.getElementById('big-code').textContent = code;
+
+    conn.on('data', data => handleClientReceive(data));
+
+    conn.on('error', e => {
+      lobbyStatus('Could not connect. Check the room code.', true);
+      document.getElementById('btn-join').disabled = false;
+    });
+    conn.on('close', () => {
+      lobbyStatus('Disconnected from host.', true);
+    });
+  });
+  peer.on('error', e => {
+    lobbyStatus('Room not found. Check the code and try again.', true);
+    document.getElementById('btn-join').disabled = false;
+  });
+}
+
+function hostGame() {
+  myName = getPlayerName();
+  if (!myName) { lobbyStatus('Please enter your name.', true); return; }
+  document.getElementById('btn-host').disabled = true;
+  lobbyStatus('Creating room…');
+
+  // Use CSPRNG for room code - 5 alphanumeric chars = 60M+ combinations
+  const codeBytes = crypto.getRandomValues(new Uint8Array(6));
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no ambiguous chars (0/O, 1/I)
+  const code = Array.from(codeBytes).map(b => alphabet[b % alphabet.length]).join('');
+  myRoomCode = code;
+
+  // F-08: defaults to peerjs.com public signaling server.
+  // For production, self-host: `npm install -g peer && peerjs --port 9000`
+  // then pass { host:'your-server', port:9000, path:'/' } to the Peer() constructor below.
+  peer = new Peer('holdem-' + code, { debug: 0 });
+  peer.on('open', async id => {
+    isHost = true;
+    mySeatIdx = 0;
+    humanSeats = [0];
+    // F-01: generate the host's ECDH key pair; the raw session secret stays local
+    await generateECDHKeyPair();
+    sessionSecret = crypto.getRandomValues(new Uint8Array(32));
+    disabledAISeats = new Set();
+
+    document.getElementById('room-code-display').textContent = code;
+    document.getElementById('host-room-area').style.display = 'block';
+    document.getElementById('btn-host').style.display = 'none';
+    lobbyStatus('Room created! Share the code above.');
+    renderWaitingSlots();
+    renderAISeatConfig();
+
+    peer.on('connection', conn => {
+      conn.on('open', () => {
+        const takenSeats = humanSeats.slice();
+        let seatIdx = -1;
+        for (let i = 1; i <= 5; i++) {
+          if (!takenSeats.includes(i)) { seatIdx = i; break; }
+        }
+        if (seatIdx === -1) { conn.send({type:'full'}); return; }
+
+        conn._seatIdx = seatIdx;
+        conn._name = 'Player';
+        clientConns.push({ conn, seatIdx, name: 'Player' });
+        humanSeats.push(seatIdx);
+
+        conn.on('data', data => handleHostReceive(conn, data));
+        conn.on('close', () => {
+          const info = clientConns.find(c => c.conn === conn);
+          if (info) humanSeats = humanSeats.filter(s => s !== info.seatIdx);
+          clientConns = clientConns.filter(c => c.conn !== conn);
+          renderWaitingSlots();
+          renderAISeatConfig();
+          updateStartButton();
+        });
+
+        // F-01: send host's ECDH public key instead of raw session secret
+        exportPublicKey(_ecdhKeyPair.publicKey).then(hostPubKey => {
+          conn.send({ type:'welcome', seatIdx, roomCode: code, hostPublicKey: hostPubKey });
+        });
+        renderWaitingSlots();
+        renderAISeatConfig();
+        updateStartButton();
+      });
+    });
   });
 
-  myPeer.on('error', (err) => {
-    if (err.type === 'unavailable-id') {
-      // Code taken, regenerate
-      myPeer.destroy(); myPeer = null; initPeer();
+  peer.on('error', e => {
+    if (e.type === 'unavailable-id') {
+      lobbyStatus('Room ID conflict, retrying…');
+      peer.destroy();
+      peer = null;
+      // Bug fix: hostGame2 was never defined — just re-run hostGame() after a short delay
+      setTimeout(hostGame, 500);
     } else {
-      showToast('Connection error. Check your network.');
+      lobbyStatus('Error: ' + e.type, true);
+      document.getElementById('btn-host').disabled = false;
     }
   });
 }
 
-// Join as sender by entering receiver's code
-function joinAsReceiver() {
-  const input = document.getElementById('code-input').value.trim();
-  if (input.length !== 4) { showToast('Enter a 4-digit code'); return; }
-  const peerId = 'stt-' + input;
-  setConnPill('waiting', 'Connecting…');
-  const conn = myPeer.connect(peerId, { reliable: true });
-  receiverConn = conn;
-  conn.on('open', () => {
-    myRole = 'sender';
-    setConnPill('connected', 'Connected');
-    setSignal(3);
-    // Show category selection on sender device
-    show('s-home'); // reset to home to pick category as sender
-  });
-  conn.on('error', () => { showToast('Could not connect. Check the code.'); setConnPill('offline','Offline'); });
+// ── Security helpers ─────────────────────────────────────────
+function sanitizeText(str, maxLen = 32) {
+  if (typeof str !== 'string') return '';
+  return str.slice(0, maxLen).replace(/[<>&"'`]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;','`':'&#96;'}[c]));
+}
+const VALID_ACTIONS = new Set(['fold','check','call','raise','allin']);
+
+// AI persona definitions (shared between lobby config and initPlayers)
+const AI_PERSONAS = [
+  null, // seat 0 = human host
+  { name:'Atlas', style:'Tight-Aggressive', aggression:0.72, bluffFreq:0.07, tightness:0.68, betSizeMult:1.10 },
+  { name:'Vera',  style:'Loose-Passive',    aggression:0.28, bluffFreq:0.04, tightness:0.30, betSizeMult:0.70 },
+  { name:'Duke',  style:'Maniac',           aggression:0.90, bluffFreq:0.28, tightness:0.20, betSizeMult:1.40 },
+  { name:'Rex',   style:'Calling Station',  aggression:0.35, bluffFreq:0.05, tightness:0.22, betSizeMult:0.85 },
+  { name:'Nina',  style:'Balanced',         aggression:0.55, bluffFreq:0.10, tightness:0.50, betSizeMult:1.00 },
+];
+
+// ═══════════════════════════════════════════════════════════
+//  AI BANTER SYSTEM (solo mode only)
+//
+//  Three escalation tiers based on the human's stack:
+//    tier 0 — normal  (stack ≥ 50% of starting)
+//    tier 1 — heated  (stack 20–49%)
+//    tier 2 — savage  (stack < 20%)
+//
+//  Each event key maps to [tier0_lines, tier1_lines, tier2_lines].
+//  triggerAIBanter() picks the highest available tier.
+// ═══════════════════════════════════════════════════════════
+const AI_BANTER = {
+
+  // ── Seat 1: Atlas — glacier-cold, treats the player like a broken algorithm ──
+  1: {
+    ai_wins: [
+      ["Calculated.", "You never had a chance. You just didn't know it yet.", "Your tells might as well be billboards.", "I've seen better poker played by accident.", "Did that hurt? File it under 'expected outcomes'."],
+      ["Predictable from the moment you looked at your cards.", "Another chip transfer. Right on schedule.", "You keep making the same mistake. I keep getting paid for it.", "The gap between us isn't luck. It's competence."],
+      ["You're not even worth adjusting for anymore.", "Watching you play is genuinely painful. Almost.", "I've modelled every decision you'll make for the rest of this game. None of them save you.", "Your poker instincts are a liability."],
+    ],
+    player_wins: [
+      ["Variance. Entirely variance.", "The math will correct that shortly.", "Don't mistake a fluctuation for a win.", "You got lucky. We both know it."],
+      ["That changes nothing about your overall trajectory.", "One hand doesn't rewrite the story. You're still losing.", "Enjoy it. The trend line hasn't moved.", "Statistically irrelevant. Ask me again in ten hands."],
+      ["A fluke. Nothing more. Look at your stack.", "That won't save you and you know it.", "One hand. You needed twenty. You're still finished.", "Desperation wins are still losses in the long run."],
+    ],
+    player_folds: [
+      ["Correct. For once in your life.", "Smart. You learned something. Took long enough.", "I knew you'd fold. I always know.", "The right move made by someone who had no business making it."],
+      ["Running from another fight. Getting predictable.", "You fold more than a paper crane factory.", "Every fold you make is just slow-motion losing.", "At least you're consistent. Consistently retreating."],
+      ["Folding with that stack? You're just delaying the inevitable.", "Smart fold. Stupid position to be in that required it.", "You're so low you can't afford to fold. But here you are. Folding.", "Save your chips. They won't last either way."],
+    ],
+    ai_allin: [
+      ["All in. I've already worked out how this ends.", "Move your chips. The math is finished.", "Call or fold. Either way I win.", "All in. No emotion. Just numbers."],
+      ["All in. And you're too low to afford the mistake of calling wrong.", "All in. I've been waiting for this spot.", "This is where the game ends for one of us.", "All in. I'd think carefully if I were you. I'm not, so I won't."],
+      ["All in. You can't call this. You barely have chips left.", "Put your last real chips in or get out of the way.", "All in. Finish it.", "Call and end it, or fold and die slowly. Your choice."],
+    ],
+    big_raise: [
+      ["Pressure test. Let's see if you crack.", "Raise. Because I can and you can't stop me.", "I want to see exactly how weak you are under pressure.", "This raise costs me nothing. It might cost you everything."],
+      ["You can't comfortably call this. That's the point.", "I raise because watching you squirm is the only entertainment left.", "Make the wrong call here and it's over. You'll make it anyway.", "You've been making bad decisions under pressure all game. Try again."],
+      ["Raise. Because humiliating you with what's left is still satisfying.", "Every chip I take at this point is just cleanup.", "You're so short-stacked this raise is basically a formality.", "I could fold everything from here and still win. I won't, though."],
+    ],
+    player_low: [
+      ["Your stack is a direct reflection of your decision quality.", "Shall I calculate exactly how many hands you have left? It's not many.", "You've lost most of your chips. The rest are just visiting."],
+      ["You've burned through half your stack. Impressive, in the worst way.", "At this rate you won't survive long enough for me to be bored.", "Your chip count tells a very unflattering story."],
+      ["You are functionally eliminated. You just haven't accepted it.", "What's left of your stack wouldn't buy respect at this table.", "You could go all in every hand from here and it wouldn't matter."],
+    ],
+    hand_start: [
+      ["Let's see if anything's changed. Spoiler: it hasn't.", "Another hand. Another opportunity for you to disappoint.", "I've already modelled every mistake you're about to make."],
+      ["How many more hands do you think you can survive?", "You're running out of chips and excuses.", "I'll try to make this loss quick. As a courtesy."],
+      ["Still here? Respect the persistence. Not the play.", "At this point you're just donating chips in installments.", "We both know how this ends. Yet here you are."],
+    ],
+    player_allin: [
+      ["Desperation or trap? It's desperation.", "A last stand. I've seen this before. It doesn't end well.", "Bold. And almost certainly wrong.", "I'll call. Obviously."],
+      ["All in with that stack? What exactly is the plan here?", "This is either very brave or very stupid. Probably the second one.", "Going all in when you're already bleeding out. Noted.", "I'll call. You're not getting away from this table with chips."],
+      ["You had nothing left to do but shove. I respect the math. Not the execution.", "All in. You had no other move and we both know it.", "This is a surrender dressed up as aggression.", "Call. End this with some dignity at least."],
+    ],
+    ai_eliminated: [
+      ["Variance. The model was sound. The cards weren't.", "A temporary anomaly. The math still holds."],
+    ],
+  },
+
+  // ── Seat 2: Vera — saccharine venom, weaponised sweetness ──
+  2: {
+    ai_wins: [
+      ["Oopsie! Were those your chips? They're mine now 💅", "Aww you tried SO hard though 🥺", "Teehee~ another one for me!", "Don't feel bad! I'm just better than you, that's all~", "Was that yours? So sorry~ not really."],
+      ["You keep giving me chips and honestly I'm not complaining 😘", "You fold better than you play, that's for sure~", "I almost felt bad taking that. Almost.", "You played that hand like you had a blindfold on, sweetie."],
+      ["At this point you're just my personal ATM 💖", "It's actually impressive how consistently you lose.", "Bless your heart. You really thought that was going to work.", "I could play with my eyes closed and still take everything you have left."],
+    ],
+    player_wins: [
+      ["Hmph. Fine. FINE. 🙄", "I let you have that one.", "That was a gift. Don't get used to gifts.", "Ugh. Okay. One hand. Enjoy it."],
+      ["You won a hand! Want a trophy? You're still losing overall 😊", "That hand doesn't fix the disaster that is your stack.", "One win doesn't make you good at this. It makes you slightly less bad.", "Congratulations on being slightly less pathetic for one hand~"],
+      ["Oh wow you won something! While completely broke! Amazing! 😒", "That one hand won't save you and you know it.", "Look at you! Won a hand! While barely surviving! Incredible.", "One win with nothing left. That's the saddest thing I've ever seen~"],
+    ],
+    player_folds: [
+      ["Byeee 👋 coward~", "Aww running away? Smart though tbh.", "Fold! Fold again! That's literally all you do!", "Smart cookie~ in the most pathetic possible way."],
+      ["You fold more than laundry. At least laundry comes back clean.", "Every time you fold I get a little happier~ 😊", "Running away AGAIN? Is that your whole strategy??", "Your poker face is folding. Repeatedly. Forever."],
+      ["Fold. Fold your way to zero. Makes it easier for me~", "With that stack you can't even afford to fold. But you did it anyway!", "You're folding yourself into extinction, babe.", "The strategy of folding when broke is not a strategy~"],
+    ],
+    ai_allin: [
+      ["All in! Because I WANT TO and you can't stop me~ 🎉", "Every chip! Right now! No takesies-backsies!", "All in because I feel AMAZING about this hand~", "Yolo but make it calculated 💅"],
+      ["All in sweetie~ I'd think about this very carefully if I were you~", "All in! You really can't afford to call wrong right now 😇", "Every chip on the table~ let's seeeee what you do~", "All in! And I promise I'm not bluffing this time~ maybe~"],
+      ["All in! Take what's left of you or surrender, honey~", "Every chip. I want every single chip you have left too.", "All in~ you're so short this barely even feels sporting.", "All in. End it or drag it out. Either way it's over for you~"],
+    ],
+    big_raise: [
+      ["Raise! Because I felt like it~ 💁", "Up it goes! What are you gonna do about it?", "Big raise! Let's see if you've got the guts~", "I raise because watching you panic is honestly adorable."],
+      ["Raise! And you can't really afford to call wrong anymore, can you~", "Big raise! You're going to fold and we both know it.", "I raise because your stack can't absorb this without it hurting.", "Up it goes~ I can see you calculating whether you can afford it. You can't."],
+      ["Raise! Just to watch you suffer with what little you have left~", "Raise. You have almost nothing. This must sting.", "Big raise on a tiny stack. This is less poker and more mercy killing~", "I raise because even small pressure breaks you now 💔"],
+    ],
+    player_low: [
+      ["Aww you're almost out of chips! That's genuinely sad 🥺", "Should I go easy on you? ...no.", "Running on fumes, huh? That's rough, babe~"],
+      ["Oh honey. Your stack. It's giving 'going home soon' energy.", "You've lost so many chips~ at some point you have to ask yourself why you're still here~", "Your chip count is a cry for help and I'm choosing not to answer it."],
+      ["You have almost nothing left~ this is embarrassing to watch, not gonna lie.", "Babe. Look at your stack. LOOK AT IT.", "You're not even a threat anymore, you're just a formality~ 💅"],
+    ],
+    hand_start: [
+      ["Ready to lose again? 😘", "This hand belongs to me~ I can feel it!", "Let's go~ I need more chips and you have some~"],
+      ["How many more of these do you think you can survive~?", "Still here! Impressive persistence. Terrible results.", "Another chance to embarrass yourself! I'm rooting for you~ not really~"],
+      ["Oh good you dealt again! More chips for me~", "You're still here! With those chips! Bold!", "New hand! Same inevitable outcome~ good luck though~ 😘"],
+    ],
+    player_allin: [
+      ["Oh WOW all in~ are you okay?? 😳", "That's a big move for someone who's been losing this badly!", "All in! I'm shaking~ just kidding, I'm not shaking at all."],
+      ["All in with THAT stack?? Bold strategy babe~", "You shoved all in because you had no other options and we both know it~", "Oh this is delicious~ all in while basically broke~", "Going all in when you're drowning is still drowning~"],
+      ["All in! With like four chips! Incredible audacity~", "You have almost nothing and you put it ALL IN. Respect the chaos I guess~", "This is less 'going all in' and more 'graceful surrender'~", "All in with nothing. A true final gesture~ 💔"],
+    ],
+    ai_eliminated: [
+      ["EXCUSE me?? That is COMPLETELY unfair 😤", "Ughhh FINE. You got lucky. Don't let it go to your head."],
+    ],
+  },
+
+  // ── Seat 3: Duke — rabid, personal, genuinely unpleasant ──
+  3: {
+    ai_wins: [
+      ["GET WRECKED. 😈", "HAHAHAHA YES. GIVE ME EVERYTHING.", "The Duke always collects. Always.", "Did that hurt?? GOOD. It should.", "You never had it. Not for a second."],
+      ["You thought you could beat ME?? YOU??", "I've eaten better competition for BREAKFAST.", "Keep losing like that and I'll have your whole stack before you blink.", "FEEL THAT? That's what losing to a better player feels like."],
+      ["You are NOTHING at this table. NOTHING.", "Watching you play is like watching someone drown in slow motion and I LOVE IT.", "Every chip you lose is a monument to how bad you are.", "You are the worst player I have ever had the pleasure of destroying."],
+    ],
+    player_wins: [
+      ["LUCKY. You got LUCKY and we both know it.", "Oh BIG DEAL. One hand. ONE.", "FINE. Take it. You won't keep it.", "I will DESTROY you next hand. Count on it."],
+      ["You caught CARDS. That's it. You didn't outplay me.", "Don't you DARE celebrate that.", "That was a fluke and your stupid face knows it.", "ONE HAND. That's ALL you get before I take everything back."],
+      ["A win!!! While completely BROKE!!! Must feel incredible!!!", "You stole ONE hand while I'm picking your carcass clean. Congrats.", "That changes NOTHING about how this ends.", "Oh great you won. NOW WHAT? Look at your stack you absolute disaster."],
+    ],
+    player_folds: [
+      ["COWARD. ABSOLUTE COWARD.", "FIGHT ME. WHY WON'T YOU FIGHT ME.", "Folding AGAIN?? You fold more than you breathe.", "Get out of here. You don't deserve to play cards."],
+      ["COWARD. Every single time. COWARD.", "You fold because you're SCARED and you're SCARED because you're WEAK.", "The only move you make consistently is running away.", "I've seen more backbone in wet cardboard than in your plays."],
+      ["You're folding with THAT STACK?? WHAT ARE YOU DOING??", "FOLD. FOLD YOUR WAY TO ZERO. SEE WHERE THAT GETS YOU.", "You are so close to broke you can't AFFORD to fold and you FOLDED.", "You're digging your own grave one fold at a time and I am ENJOYING EVERY SECOND."],
+    ],
+    ai_allin: [
+      ["ALL IN. LET'S GO. RIGHT NOW.", "EVERY. CHIP. ON. THE. TABLE. 🔥", "ALL IN BECAUSE I FEEL INCREDIBLE AND YOU FEEL TERRIBLE.", "You want chaos?! HERE. IS. YOUR. CHAOS."],
+      ["ALL IN. You can't afford to call and you can't afford to fold. SUFFER.", "EVERY CHIP IN. I want to end this NOW.", "ALL IN AND I PROMISE YOU I HAVE IT.", "Call or fold and either way you're losing ground you can't recover."],
+      ["ALL IN. TAKE WHAT'S LEFT OF YOU OR QUIT.", "ALL IN. You're nearly dead anyway, let's just FINISH IT.", "EVERY CHIP. I want you gone.", "ALL IN. Look at what you have left. Is it even worth fighting?"],
+    ],
+    big_raise: [
+      ["RAISE IT. RAISE IT INTO THE STRATOSPHERE.", "BIG RAISE. WHAT ARE YOU GONNA DO ABOUT IT.", "I raise because this table is BORING and I am BORED.", "More chips, MORE CHAOS, MORE FUN FOR ME."],
+      ["BIG RAISE. And you're too low to brush it off.", "I raise because I WANT to watch you squirm and make bad decisions.", "THIS RAISE IS DESIGNED TO HURT YOU SPECIFICALLY.", "RAISE. Because your stack can't handle this and we both know it."],
+      ["RAISE INTO YOUR TINY BROKEN STACK. HOW DOES THAT FEEL.", "Raising against someone this short is almost unsportsmanlike. ALMOST.", "BIG RAISE. You have nothing left to defend with.", "I raise. You crumble. That's just the natural order of things now."],
+    ],
+    player_low: [
+      ["Almost broke already?? This is BEAUTIFUL.", "Shortstacked and terrified. Name a more iconic duo.", "Just give me the rest. You're not doing anything with it anyway."],
+      ["You've torched through most of your chips. Genuinely impressive destruction.", "Just HAND ME THE CHIPS. Stop making me work for the inevitable.", "You're bleeding out and you haven't even noticed how bad it is."],
+      ["You have NOTHING LEFT. This is basically charity poker at this point.", "What exactly is your plan with those chips? What PLAN?", "You are a walking dead man at this table. I'm just the paperwork."],
+    ],
+    hand_start: [
+      ["ANOTHER HAND. ANOTHER VICTIM. LET'S GO.", "Come on then. I'm waiting. Try something.", "I'm gonna burn this table to the ground and I am DELIGHTED about it."],
+      ["How much longer can you actually survive here?", "Still at the table! With THAT stack! Incredible stubbornness!", "Another hand. Another chance for me to take everything you have."],
+      ["STILL HERE?? With THOSE CHIPS?? BOLD.", "Another hand! You sure about that?", "Okay. Let's see how long you can drag this out."],
+    ],
+    player_allin: [
+      ["OHHHHH HERE WE GO. IT'S ON.", "FINALLY some guts! Let's GOOOOO.", "YES. PUT IT ALL IN. I'VE BEEN WAITING FOR THIS.", "ALL IN?? Then so am I. Let's settle this RIGHT NOW."],
+      ["All in with THAT? That's not brave, that's DESPERATION.", "You shoved because you had no choice and I'm going to CALL because I have every chip to back it up.", "ALL IN WITH NOTHING. The most beautiful thing I've seen today.", "Going all in when you're this low is just theatrical dying."],
+      ["All in. With what, exactly? A prayer and pocket change?", "You went all in because you're FINISHED and you KNOW it.", "This is less a poker move and more a public meltdown.", "ALL IN with your last scraps. CALL. End this."],
+    ],
+    ai_eliminated: [
+      ["THIS IS RIGGED. THIS TABLE IS RIGGED. I'M FILING A COMPLAINT.", "This means NOTHING. I'll be back and I'll be ANGRIER."],
+    ],
+  },
+
+  // ── Seat 4: Rex — simple, blunt, accidentally devastating ──
+  4: {
+    ai_wins: [
+      ["Rex win. Rex happy.", "Called it. Rex always call it.", "Easy chips. Rex like easy chips.", "Rex strategy work again. Surprise to nobody."],
+      ["Rex take chips now. Thank you.", "Rex not understand your play. Rex win anyway.", "Maybe next time don't do that thing you did.", "Rex confused by your choices. Rex not complaining though."],
+      ["Rex got all your chips. Rex unsure why you thought that was good hand.", "You play bad. Rex notice. Rex benefit.", "Rex not smart but Rex beating you. Think about that.", "Rex win again. Rex starting to feel bad. Not really."],
+    ],
+    player_wins: [
+      ["Huh. Okay. Rex call again next time.", "That happen. Rex fine.", "You win that one. Rex win more though.", "Rex was gonna win that but cards said no."],
+      ["Fine. You win hand. Rex still has more chips than you overall.", "Rex notice you celebrating a lot for someone who's losing.", "Rex confused. Rex thought Rex had better hand. Rex wrong. Weird.", "You win hand. Rex win war. Probably."],
+      ["Oh you win! While having almost no chips! Rex not sure that good sign.", "Rex losing a hand to someone this low is embarrassing for Rex honestly.", "You won. With nothing. Rex unsure how to feel.", "Rex give you that one. Rex has plenty. You don't."],
+    ],
+    player_folds: [
+      ["Oh. You fold. Okay.", "Rex was gonna call anyway. Rex always call.", "Folding is thing people do. Rex not understand why but okay.", "Bye then. Rex wave. 👋"],
+      ["You fold again. Rex notice you fold a lot.", "Folding when Rex around is smart. Rex give you that.", "Rex think maybe you fold too much. But Rex not your coach.", "You go. Rex stay. Rex have chips. You have less chips."],
+      ["You fold with THAT stack? Rex confused. Rex not sure you can afford that.", "Folding when nearly broke is brave in sad way.", "Rex thinks you should stop folding. Rex thinks you should stop losing. Same problem.", "You fold. You also almost broke. Rex connect these two things."],
+    ],
+    ai_allin: [
+      ["Rex go all in. Rex feel good.", "All chips. Rex logic.", "Rex all in. Rex not nervous. Rex never nervous.", "All in! Rex excited about this!"],
+      ["Rex all in. Rex think you should be worried.", "Every chip. Rex confident about this. Very confident.", "All in because Rex has hand and Rex pretty sure you don't.", "Rex all in. Rex notice your stack getting small. This bad for you."],
+      ["Rex all in. Rex have lot of chips. You have few chips. Rex like this math.", "All in. Rex going to take rest of your chips now.", "Rex all in. You have almost nothing. Rex find this interesting.", "All chips. Rex ready. Are you ready? Rex not sure you ready."],
+    ],
+    big_raise: [
+      ["Rex raise big! Rex like big numbers.", "More chips! Rex put more in!", "Rex raise because Rex feel like it.", "Big raise. Rex saw this on TV. Looked good on TV."],
+      ["Rex raise big. Rex notice you not have many chips. This relevant.", "Big raise! Rex not sure you can handle this right now.", "Rex raise. Rex think this make you uncomfortable. Rex okay with that.", "More chips in pot! Rex love putting chips in pot!"],
+      ["Rex raise big. You have tiny stack. Rex find this amusing.", "Big raise on tiny stack is what Rex call 'cleanup operation'.", "Rex raise. Rex doing this because Rex winning and you are not.", "Rex put in big raise. Rex notice you running out of things to call with."],
+    ],
+    player_low: [
+      ["You got less chips than Rex now. Rex notice.", "Rex think you running low. Maybe change strategy? Rex not sure what strategy is though.", "Almost broke! Rex been broke before. Rex called his way out. You try that."],
+      ["You losing lot of chips. Rex not sure why. Rex just call everything and seem to do okay.", "Your chip situation is bad. Rex chip situation is good. Rex think about this a lot.", "Rex worry about you a little. Rex still going to take your chips though."],
+      ["You have very few chips now. Rex have many chips. Rex think this mean Rex winning.", "Rex look at your stack. Rex look at Rex stack. Rex feel good about Rex situation.", "You almost out of chips. Rex not know what to say. Rex sorry. Rex not actually sorry."],
+    ],
+    hand_start: [
+      ["Rex ready! Rex call everything!", "Hello! Rex excited! Rex going to call!", "New hand! Rex strategy same as always: call."],
+      ["Rex notice you not doing well. Rex still going to play normally though.", "Another hand! Rex hope you have better luck! Rex not counting on it!", "Rex ready. Rex also notice you running low. Rex mention this as observation."],
+      ["Rex here. You still here too. With those chips. Rex respect persistence not results.", "New hand! Rex curious how long you last!", "Rex ready to call. Rex always ready to call. You ready to lose? Rex think yes."],
+    ],
+    player_allin: [
+      ["Oh. All in. Rex call. Rex always call all in.", "All in! Rex know what to do here. Rex call.", "Okay! Rex in. Rex not think too long about this.", "Rex call. That Rex's answer to everything. It work a lot."],
+      ["All in with that stack? Rex going to call. Rex always going to call.", "All in. Rex notice you not have much left. Rex call anyway.", "Rex call. Rex think you desperate. Rex not say this mean. Just observation.", "Rex all in situations: always call. Rex policy."],
+      ["All in. Rex look at what you have. Rex look at what Rex have. Rex call obviously.", "You go all in with almost nothing. Rex respect the commitment. Rex still call.", "All in with last chips. Rex have seen this before. Rex call. Rex usually win after.", "Rex call. You put in everything you have left. Rex sorry. Rex not actually sorry."],
+    ],
+    ai_eliminated: [
+      ["Rex go home now. Rex had fun. Rex call too many times maybe.", "Rex lose. Okay. Rex not sure what went wrong. Rex going to call more next time."],
+    ],
+  },
+
+  // ── Seat 5: Nina — composed, precise, cuts like a scalpel ──
+  5: {
+    ai_wins: [
+      ["Better reads. Better results. Simple.", "Thank you for the contribution.", "That was never close.", "I don't need luck. I need you to keep playing like that."],
+      ["Your decisions are making this very easy for me.", "Every mistake you make is a deposit in my stack.", "You're not losing to cards. You're losing to me.", "I've been three steps ahead of you all game."],
+      ["At this point I'm not even trying hard. That's the troubling part for you.", "You played that hand as well as you could. It still wasn't close.", "The gap between your instincts and the correct play is frankly impressive.", "I could tell you exactly what you did wrong, but I'd rather just keep winning."],
+    ],
+    player_wins: [
+      ["Well played. This time.", "I'll adjust. It won't happen again.", "You got there. Narrowly.", "Good hand. File it as an exception."],
+      ["One hand changes nothing about your overall position here.", "You made the right move. You're still losing the game.", "That won't be enough and I think you know that.", "I'll give you that one. Don't read into it."],
+      ["A win while nearly broke is still nearly broke.", "You won a hand. Your stack still tells the real story.", "One moment of competence doesn't change the narrative.", "Good hand. Genuinely. Doesn't fix anything though."],
+    ],
+    player_folds: [
+      ["Correct fold.", "Smart laydown. At least you can read that much.", "You made the right call.", "Good exit. That hand was already over for you."],
+      ["Smart fold. You're learning. Too late, but learning.", "You folded the right hand. You're still in trouble overall.", "Good laydown. It won't save you but it was the right move.", "Folding correctly while losing consistently is a very specific skill you've developed."],
+      ["Smart fold with a stack that size. You can't afford to be wrong.", "You made the right move. You're also nearly out of chips. Both things true.", "Correct fold. Incorrect everything else that got you here.", "You're folding to survive and surviving to fold. That's not a strategy."],
+    ],
+    ai_allin: [
+      ["All in. I wouldn't if I were you.", "All in. I've been patient. This is the hand.", "All in. No hesitation.", "This is the spot. Call it wrong and it's over."],
+      ["All in. And you're not in a position to absorb a mistake here.", "All in. I've been setting this up for three hands.", "This is the hand I've been waiting for.", "All in. Consider what a wrong call costs you right now."],
+      ["All in. You barely have enough to call and I have everything I need to win.", "All in. This is less a gamble and more a formality at this point.", "All in. Make the right read if you can.", "All in. I'll let the cards do the talking."],
+    ],
+    big_raise: [
+      ["Applying pressure. Let's see how you respond.", "Raise. I want to see where you actually stand.", "This raise is information-gathering as much as anything.", "I raise because I can back it up."],
+      ["Raise. You're not in a comfortable spot to call this.", "This raise is designed to force a mistake. Try not to make one.", "I raise because you're running low enough that this actually stings now.", "Raise. I want to see how you play under real pressure."],
+      ["Raise. Against a stack your size this is almost cruel. Almost.", "Big raise into your short stack. Take your time. Make the right call.", "I raise because even modest pressure is enough to crack you now.", "This raise puts you in an impossible spot. That's entirely intentional."],
+    ],
+    player_low: [
+      ["Your stack reflects the quality of your decisions so far.", "The chip count tells a story. It's not a flattering one.", "It's a recoverable position. Technically."],
+      ["You've lost more than half your starting stack. The decisions that caused that don't reverse themselves.", "The deficit isn't just in chips. It's in reads, timing, and patience.", "Careful from here. One more mistake and recovery becomes impossible."],
+      ["You're nearly out. I'd ask if you're okay but I'd rather just finish this.", "The gap between your stack and mine is now a statement about the gap between your play and mine.", "You have almost nothing left. What's the plan from here? I'm genuinely curious."],
+    ],
+    hand_start: [
+      ["Let's play.", "I'm watching everything.", "New hand. Try something different this time."],
+      ["How many more of these do you think you can realistically survive?", "Still in it. Barely. I'll give you that.", "New hand. You need a big one. Desperately."],
+      ["Still here. With those chips. Respect the stubbornness if not the judgment.", "Another hand. At this point you're fighting for survival and we both know it.", "New hand. I'll try not to end this too quickly. No promises."],
+    ],
+    player_allin: [
+      ["Interesting spot for a shove.", "All in. Let me think.", "Bold. I'll give you that even if it's wrong.", "Okay. Let's see what you have."],
+      ["All in from a short stack. Calculated desperation or actual desperation?", "You shoved because the math forced you to. I see it.", "All in. Your timing is either very good or very bad.", "Going all in when you're this low is brave or nothing. We'll see which."],
+      ["All in with almost nothing left. This is the move of someone with no other options.", "You put everything in because there was no alternative. I understand that.", "All in. Your last real stand. Make it count.", "This all in is either a miracle or the end. Nothing in between."],
+    ],
+    ai_eliminated: [
+      ["Well played. You earned that.", "I'll be back with better reads next time."],
+    ],
+  },
+};
+
+// Cooldown tracker — one banter message per AI per hand max (with some randomness)
+const _banterLastHand = {}; // seatIdx → hand number when they last spoke
+let _banterQueue = [];       // pending { delay, seatIdx, text } — drained one at a time
+let _banterDraining = false;
+
+function _drainBanterQueue() {
+  if (_banterDraining || _banterQueue.length === 0) return;
+  _banterDraining = true;
+  const { delay, seatIdx, text } = _banterQueue.shift();
+  setTimeout(() => {
+    _banterDraining = false;
+    if (!isSolo) return; // only in solo
+    const p = players[seatIdx];
+    if (!p || p.eliminated) { _drainBanterQueue(); return; }
+    appendChatMsg(p.name, text, false);
+    _drainBanterQueue();
+  }, delay);
 }
 
-// ── CATEGORY / PICK ─────────────────────────────────────────────────────────
-function startCat(c) {
-  cat = c;
-  const d = CATS[c];
-  document.getElementById('sender-title').textContent = d.title;
-  buildGrid('pick-grid', d.items, d.cols, 'senderPick');
-  show('s-sender');
+// Returns 0 (normal) / 1 (heated, <50%) / 2 (savage, <20%) based on human stack
+function _getBanterTier() {
+  const me = players[mySeatIdx];
+  if (!me || me.stack <= 0) return 2;
+  const ratio = me.stack / stats.startStack;
+  if (ratio < 0.20) return 2;
+  if (ratio < 0.50) return 1;
+  return 0;
 }
 
-function buildGrid(gridId, items, cols, fn) {
-  const g = document.getElementById(gridId);
-  g.className = 'pick-grid ' + cols;
-  g.innerHTML = items.map((it, i) => {
-    const isNum = /^\d+$/.test(it.e);
-    const icon = isNum ? `<div class="pick-num">${it.e}</div>` : `<div class="pick-icon">${it.e}</div>`;
-    return `<button class="pick-btn" onclick="${fn}(${i})">${icon}<div class="pick-label">${it.l}</div></button>`;
-  }).join('');
+function triggerAIBanter(context, preferSeatIdx = null) {
+  if (!isSolo) return;
+  // Collect eligible AI seats for this context
+  const eligible = players.filter(p =>
+    p.isAI && !p.eliminated && AI_BANTER[p.id] && AI_BANTER[p.id][context]
+  );
+  if (eligible.length === 0) return;
+
+  // Prefer a specific speaker (e.g. the AI who just won), otherwise pick randomly
+  let speaker;
+  if (preferSeatIdx !== null) {
+    speaker = eligible.find(p => p.id === preferSeatIdx) || null;
+  }
+  if (!speaker) {
+    const fresh = eligible.filter(p => (_banterLastHand[p.id] || -1) < stats.hands);
+    speaker = fresh.length > 0
+      ? fresh[Math.floor(Math.random() * fresh.length)]
+      : eligible[Math.floor(Math.random() * eligible.length)];
+  }
+
+  // Rate limit: max 1 quip per AI per hand (except ai_eliminated which always fires)
+  if (context !== 'ai_eliminated') {
+    if ((_banterLastHand[speaker.id] || -1) >= stats.hands) return;
+    if (Math.random() > 0.72) return;
+  }
+  _banterLastHand[speaker.id] = stats.hands;
+
+  // Pick lines from the appropriate escalation tier (fall back to tier 0 if not defined)
+  const allTiers = AI_BANTER[speaker.id][context];
+  const tier     = Math.min(_getBanterTier(), allTiers.length - 1);
+  const lines    = allTiers[tier];
+  const text     = lines[Math.floor(Math.random() * lines.length)];
+  const delay    = 900 + Math.random() * 1200;
+
+  _banterQueue.push({ delay, seatIdx: speaker.id, text });
+  _drainBanterQueue();
 }
 
-function senderPick(i) {
-  const item = CATS[cat].items[i];
-  chosen = item;
+function renderWaitingSlots() {
+  // F-02: use DOM API (no innerHTML) to prevent XSS from any interpolated data
+  const el = document.getElementById('waiting-players');
+  el.innerHTML = '';
+  const names = { 0: myName };
+  clientConns.forEach(c => { names[c.seatIdx] = c.name; });
 
-  // Flash selection
-  document.querySelectorAll('#pick-grid .pick-btn').forEach((b, idx) => {
-    b.style.opacity = idx === i ? '1' : '0.3';
-    if (idx === i) b.classList.add('selected');
-  });
+  for (let i = 0; i < 6; i++) {
+    const slot = document.createElement('div');
+    slot.className = 'waiting-slot';
 
-  document.getElementById('sending-emoji').textContent = item.e;
-  setTimeout(() => show('s-sending'), 350);
+    const dot = document.createElement('span');
+    dot.className = 'slot-dot';
+    const label = document.createElement('span');
+    label.className = 'slot-label';
+    const type = document.createElement('span');
+    type.className = 'slot-type';
 
-  // Send to receiver if connected
-  if (receiverConn && receiverConn.open) {
-    receiverConn.send({ cat, item });
-    setTimeout(() => show('s-sending'), 350);
-    setTimeout(() => show('s-sent'), 2400);
-  } else {
-    // Single device fallback: after delay, go to receiver screen
-    buildGrid('guess-grid', CATS[cat].items, CATS[cat].cols, 'receiverGuess');
-    setTimeout(() => { animateProgress(); show('s-receiver'); }, 2400);
+    if (humanSeats.includes(i)) {
+      dot.classList.add('connected');
+      label.textContent = sanitizeText(names[i] || 'Connecting…');
+      type.textContent = 'Human';
+    } else if (disabledAISeats.has(i)) {
+      slot.style.opacity = '0.35';
+      label.textContent = `Seat ${i + 1}`;
+      type.textContent = 'Empty';
+    } else {
+      const persona = AI_PERSONAS[i];
+      dot.classList.add('ai');
+      label.textContent = persona ? sanitizeText(persona.name) : `Seat ${i + 1}`;
+      type.textContent = 'AI';
+    }
+
+    slot.appendChild(dot);
+    slot.appendChild(label);
+    slot.appendChild(type);
+    el.appendChild(slot);
   }
 }
 
-function receiverGuess(i) {
-  const g = CATS[cat].items[i];
-  const correct = chosen && g.l === chosen.l;
-  document.getElementById("r-icon").textContent = g.e;
-  document.getElementById("r-name").textContent = g.l;
-  document.getElementById("result-check").textContent = correct ? "✓" : "✗";
-  document.getElementById("result-check").style.background = correct ? "#e8faf0" : "#fde8e8";
-  document.getElementById("result-title").textContent = correct ? "Correct!" : "Not quite…";
-  document.getElementById("result-sub").textContent = correct ? "The receiver successfully read the sender's thought." : "The minds didn't align this time. Try again!";
-  document.getElementById("rc-meta").textContent = correct ? "Sender & receiver matched" : "Sender chose: " + (chosen ? chosen.l : "?");
-  show("s-result");
+function renderAISeatConfig() {
+  // F-02: use DOM API (no innerHTML) to prevent XSS from any interpolated data
+  const container = document.getElementById('ai-seat-rows');
+  container.innerHTML = '';
+  for (let i = 1; i <= 5; i++) {
+    if (humanSeats.includes(i)) continue;
+    const persona = AI_PERSONAS[i];
+    const enabled = !disabledAISeats.has(i);
+
+    const row = document.createElement('div');
+    row.className = 'ai-seat-row';
+
+    const info = document.createElement('div');
+    info.className = 'ai-seat-info';
+
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'ai-seat-name';
+    nameSpan.textContent = `Seat ${i + 1} · ${persona ? sanitizeText(persona.name) : `Seat ${i + 1}`}`;
+
+    const styleSpan = document.createElement('span');
+    styleSpan.className = 'ai-seat-style';
+    styleSpan.textContent = persona ? sanitizeText(persona.style) : '';
+
+    info.appendChild(nameSpan);
+    info.appendChild(styleSpan);
+
+    const lbl = document.createElement('label');
+    lbl.className = 'ai-toggle';
+
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = enabled;
+    // Use addEventListener instead of inline onchange (F-02)
+    cb.addEventListener('change', (function(seatIdx) {
+      return function() { toggleAISeat(seatIdx, this.checked); };
+    })(i));
+
+    const slider = document.createElement('span');
+    slider.className = 'ai-toggle-slider';
+
+    lbl.appendChild(cb);
+    lbl.appendChild(slider);
+
+    row.appendChild(info);
+    row.appendChild(lbl);
+    container.appendChild(row);
+  }
 }
 
-function animateProgress() {
-  clearInterval(progTimer);
-  const bar = document.getElementById('prog');
-  let w = 0;
-  bar.style.width = '0%';
-  progTimer = setInterval(() => {
-    w += 1.2; bar.style.width = Math.min(w, 100) + '%';
-    if (w >= 100) clearInterval(progTimer);
-  }, 30);
+function toggleAISeat(seatIdx, enabled) {
+  if (enabled) { disabledAISeats.delete(seatIdx); }
+  else { disabledAISeats.add(seatIdx); }
+  renderWaitingSlots();
 }
 
-function restart() {
-  cat = null; chosen = null;
-  show('s-home');
+function updateStartButton() {
+  document.getElementById('btn-start-game').disabled = humanSeats.length < 2;
 }
 
-// ── SECRET PEEK ─────────────────────────────────────────────────────────────
-function startHold(e) {
-  if (e) e.preventDefault();
-  holdProg = 0;
-  const ring = document.getElementById('hold-ring');
-  const circle = document.getElementById('hold-circle');
-  ring.style.display = 'block';
-  circle.style.strokeDashoffset = '120';
-  holdTimer = setInterval(() => {
-    holdProg += 25;
-    circle.style.strokeDashoffset = 120 * (1 - Math.min(holdProg / HOLD, 1));
-    if (holdProg >= HOLD) { clearInterval(holdTimer); holdTimer = null; ring.style.display = 'none'; showPeek(); }
-  }, 25);
+function handleHostReceive(conn, data) {
+  if (data.type === 'ecdh') {
+    // F-01: client has sent its ECDH public key; derive the shared secret for this connection
+    importPublicKey(data.clientPublicKey).then(async clientPub => {
+      const shared = await deriveSharedSecret(clientPub);
+      // XOR the shared secret with the host's session secret to produce the per-client chat secret
+      // This means both sides need the ECDH agreement AND for the host to have distributed
+      // the session secret (which now happens via the ECDH channel after key exchange completes)
+      conn._sessionSecret = shared;
+      // Send the session secret encrypted under the ECDH-derived key
+      // For simplicity we XOR: client will XOR shared with what host sends to get sessionSecret
+      const xored = new Uint8Array(32);
+      for (let i = 0; i < 32; i++) xored[i] = sessionSecret[i] ^ shared[i];
+      conn.send({ type:'sessionKey', xored: btoa(String.fromCharCode(...xored)) });
+    }).catch(() => {});
+    return;
+  }
+  if (data.type === 'setName') {
+    // Sanitize and cap name length before storing
+    const safeName = String(data.name || '').trim().slice(0, 20) || 'Player';
+    conn._name = safeName;
+    const info = clientConns.find(c => c.conn === conn);
+    if (info) info.name = safeName;
+    renderWaitingSlots();
+    if (handInProgress) {
+      players[conn._seatIdx].name = safeName;
+      broadcastState();
+    }
+  } else if (data.type === 'action') {
+    // Validate action is a known string and raiseAmt is a safe integer
+    const action = VALID_ACTIONS.has(data.action) ? data.action : null;
+    const raiseAmt = Number.isFinite(data.raiseAmt) && data.raiseAmt >= 0
+      ? Math.floor(Math.min(data.raiseAmt, STARTING_STACK * 4))
+      : 0;
+    if (action && handInProgress && currentPlayerIdx === conn._seatIdx) {
+      executeAction(conn._seatIdx, action, raiseAmt);
+    }
+  } else if (data.type === 'chat') {
+    relayOrReceiveChat(conn, data);
+  }
 }
 
-function endHold() {
-  if (holdTimer) { clearInterval(holdTimer); holdTimer = null; }
-  holdProg = 0;
-  document.getElementById('hold-circle').style.strokeDashoffset = '120';
-  document.getElementById('hold-ring').style.display = 'none';
+function handleClientReceive(data) {
+  if (data.type === 'welcome') {
+    // Fix #8: validate seatIdx before using it as an array index
+    const seatIdx = data.seatIdx;
+    if (!Number.isInteger(seatIdx) || seatIdx < 0 || seatIdx > 5) {
+      lobbyStatus('⚠ Invalid seat assignment from host — rejecting.', true);
+      return;
+    }
+    mySeatIdx = seatIdx;
+    myRoomCode = data.roomCode;
+    lobbyStatus(`Joined! You are Seat ${mySeatIdx + 1}. Waiting for host to start…`);
+    hostConn.send({ type:'setName', name: myName });
+    // F-01: ECDH key exchange — generate our key pair and send our public key to the host
+    generateECDHKeyPair().then(async () => {
+      _ecdhPeerPublicKey = await importPublicKey(data.hostPublicKey);
+      const clientPubKey = await exportPublicKey(_ecdhKeyPair.publicKey);
+      hostConn.send({ type:'ecdh', clientPublicKey: clientPubKey });
+    }).catch(() => {
+      lobbyStatus('⚠ Key exchange failed — chat encryption unavailable', true);
+    });
+  } else if (data.type === 'sessionKey') {
+    // F-01: derive the shared ECDH secret and XOR with host's masked session secret
+    deriveSharedSecret(_ecdhPeerPublicKey).then(shared => {
+      const xored = Uint8Array.from(atob(data.xored), c => c.charCodeAt(0));
+      const secret = new Uint8Array(32);
+      for (let i = 0; i < 32; i++) secret[i] = xored[i] ^ shared[i];
+      sessionSecret = secret;
+      // Fix #6: call initChatCrypto here regardless of whether enterGame has already
+      // fired — covers the race where startGame arrives before sessionKey.
+      // initChatCrypto is idempotent (chatAESKey guard prevents double-init).
+      if (!chatAESKey) initChatCrypto();
+    }).catch(() => {});
+  } else if (data.type === 'full') {
+    lobbyStatus('Room is full!', true);
+  } else if (data.type === 'gameState') {
+    applyGameState(data.state);
+  } else if (data.type === 'chat') {
+    receiveChat(data.from, data.payload);
+  } else if (data.type === 'startGame') {
+    // Bug fix: validate the startGame payload before applying it
+    const validSeats = [4, 6];
+    const seats = data.maxSeats;
+    if (!validSeats.includes(seats)) return;
+    if (!Array.isArray(data.humanSeats) || data.humanSeats.some(s => !Number.isInteger(s) || s < 0 || s >= seats)) return;
+    if (!Number.isInteger(data.seatIdx) || data.seatIdx < 0 || data.seatIdx >= seats) return;
+    humanSeats = data.humanSeats;
+    mySeatIdx = data.seatIdx;
+    MAX_SEATS = data.maxSeats || 4;
+    setSeatVisibility();
+    enterGame(); // enterGame calls initChatCrypto which broadcasts keys when ready
+  }
 }
 
-function showPeek() {
-  if (!chosen) return;
-  const overlay = document.getElementById('peek');
-  document.getElementById('p-icon').textContent = chosen.e;
-  document.getElementById('p-name').textContent = chosen.l;
-  const fill = document.getElementById('p-fill');
-  fill.style.animation = 'none'; void fill.offsetWidth;
-  fill.style.animation = 'drain 1s linear forwards';
-  overlay.style.display = 'flex';
-  setTimeout(() => { overlay.style.display = 'none'; }, 1000);
+function serializeState(forSeatIdx = null) {
+  // Build the seat-independent payload once; only the hand field varies per client
+  const common = {
+    communityCards, pot, currentBet, phase,
+    currentPlayerIdx, dealerIdx, smallBlindIdx, bigBlindIdx,
+    handInProgress, playersToAct, stats
+  };
+  common.players = players.map(p => ({
+    id: p.id, name: p.name, stack: p.stack,
+    hand: (forSeatIdx !== null && p.id === forSeatIdx) ? p.hand : [],
+    bet: p.bet, folded: p.folded, allIn: p.allIn, isAI: p.isAI, eliminated: p.eliminated
+  }));
+  return common;
 }
 
-// ── HELPERS ──────────────────────────────────────────────────────────────────
-function show(id) {
-  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-  const el = document.getElementById(id);
-  el.classList.add('active');
-  el.scrollTop = 0;
-}
-
-function setConnPill(state, label) {
-  const pill = document.getElementById('conn-pill');
-  pill.className = 'conn-pill ' + state;
-  document.getElementById('conn-label').textContent = label;
-}
-
-function setSignal(n) {
-  ['b1','b2','b3'].forEach((id, i) => {
-    document.getElementById(id).classList.toggle('lit', i < n);
+function broadcastState() {
+  if (!isHost) return;
+  // Each client receives a state filtered to their own seat — opponent hole cards
+  // are stripped (sent as []) so a client never sees cards they shouldn't.
+  // Game metadata (stacks, bets, phase) travels as plaintext over PeerJS's
+  // signaling relay; only chat content is AES-encrypted (see chat section).
+  clientConns.forEach(c => {
+    try { c.conn.send({ type:'gameState', state: serializeState(c.seatIdx) }); } catch(e) {}
   });
 }
 
-function showToast(msg) {
-  const t = document.getElementById('toast');
-  t.textContent = msg; t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), 2500);
+// F-03: Validate host-supplied game state before applying it to prevent
+//       prototype pollution and malformed-state denial-of-service attacks.
+const VALID_PHASES = new Set(['waiting','preflop','flop','turn','river','showdown']);
+function validateGameState(s) {
+  if (!s || typeof s !== 'object') return false;
+  if (!Array.isArray(s.players) || s.players.length < 2 || s.players.length > 6) return false;
+  const maxSeat = s.players.length - 1;
+  for (const p of s.players) {
+    if (typeof p.id !== 'number' || !Number.isFinite(p.id) || p.id < 0 || p.id > maxSeat) return false;
+    if (typeof p.stack !== 'number' || !Number.isFinite(p.stack) || p.stack < 0) return false;
+    if (typeof p.bet !== 'number' || !Number.isFinite(p.bet) || p.bet < 0) return false;
+    if (!Array.isArray(p.hand)) return false;
+    // Fix #10: validate each card has a known rank and suit
+    for (const c of p.hand) {
+      if (!c || typeof c !== 'object') return false;
+      if (!RANK_VAL.hasOwnProperty(c.rank)) return false;
+      if (!SUITS.includes(c.suit)) return false;
+    }
+  }
+  if (!VALID_PHASES.has(s.phase)) return false;
+  if (typeof s.pot !== 'number' || !Number.isFinite(s.pot) || s.pot < 0) return false;
+  if (typeof s.currentBet !== 'number' || !Number.isFinite(s.currentBet) || s.currentBet < 0) return false;
+  if (!Array.isArray(s.communityCards)) return false;
+  // Fix #9: validate all seat-index fields to prevent out-of-bounds array access
+  const isValidSeat = v => v === -1 || (Number.isInteger(v) && v >= 0 && v <= maxSeat);
+  if (!isValidSeat(s.currentPlayerIdx)) return false;
+  if (!isValidSeat(s.dealerIdx))        return false;
+  if (!isValidSeat(s.smallBlindIdx))    return false;
+  if (!isValidSeat(s.bigBlindIdx))      return false;
+  return true;
 }
 
-// Code input validation
-document.getElementById('code-input').addEventListener('input', function() {
-  document.getElementById('join-btn').disabled = this.value.length !== 4;
+function applyGameState(state) {
+  // F-03: structuredClone strips prototype pollution; validateGameState checks types/ranges
+  let s;
+  try { s = structuredClone(state); } catch(e) { return; }
+  if (!validateGameState(s)) {
+    appendSystemMsg('⚠ Invalid game state received — ignored');
+    return;
+  }
+  players = s.players;
+  communityCards = s.communityCards;
+  pot = s.pot;
+  currentBet = s.currentBet;
+  phase = s.phase;
+  currentPlayerIdx = s.currentPlayerIdx;
+  dealerIdx = s.dealerIdx;
+  smallBlindIdx = s.smallBlindIdx;
+  bigBlindIdx = s.bigBlindIdx;
+  handInProgress = s.handInProgress;
+  playersToAct = Array.isArray(s.playersToAct) ? s.playersToAct : [];
+  if (s.stats && typeof s.stats === 'object') {
+    // Merge host stats but preserve local analysis counters — the host doesn't track these for the client
+    stats = {
+      ...s.stats,
+      foldedToWorse:   stats.foldedToWorse   ?? 0,
+      successfulBluffs: stats.successfulBluffs ?? 0,
+    };
+  }
+
+  renderAllCards();
+  updateUI();
+  updateControls();
+}
+
+// ═══════════════════════════════════════════════════════════
+//  F-01: ECDH KEY EXCHANGE
+//  Each client generates an ephemeral P-256 key pair. The host
+//  sends its public key in 'welcome'; the client responds with
+//  its own public key in 'ecdh'. Both sides derive the same
+//  shared secret via ECDH, which replaces the plaintext
+//  sessionSecret that was previously sent over the wire.
+//  The raw session secret never leaves the host.
+// ═══════════════════════════════════════════════════════════
+let _ecdhKeyPair = null;  // { privateKey, publicKey } — set for host and each client
+
+async function generateECDHKeyPair() {
+  _ecdhKeyPair = await crypto.subtle.generateKey(
+    { name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveKey', 'deriveBits']
+  );
+}
+
+// Export a public key to a base64 string for transmission
+async function exportPublicKey(key) {
+  const raw = await crypto.subtle.exportKey('raw', key);
+  return btoa(String.fromCharCode(...new Uint8Array(raw)));
+}
+
+// Import a base64 public key for ECDH
+async function importPublicKey(b64) {
+  const raw = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+  return crypto.subtle.importKey('raw', raw, { name: 'ECDH', namedCurve: 'P-256' }, false, []);
+}
+
+// Derive a 32-byte shared secret from our private key + peer's public key
+async function deriveSharedSecret(theirPublicKey) {
+  const bits = await crypto.subtle.deriveBits(
+    { name: 'ECDH', public: theirPublicKey }, _ecdhKeyPair.privateKey, 256
+  );
+  return new Uint8Array(bits);
+}
+
+function copyRoomCode() {
+  navigator.clipboard.writeText(myRoomCode).catch(() => {});
+  const el = document.getElementById('room-code-display') || document.getElementById('room-badge');
+  const orig = el.textContent;
+  el.textContent = 'Copied!';
+  setTimeout(() => el.textContent = orig, 1200);
+}
+
+// ═══════════════════════════════════════════════════════════
+//  GAME ENTRY
+// ═══════════════════════════════════════════════════════════
+function setSeatVisibility() {
+  const sixSeats = MAX_SEATS === 6;
+  document.getElementById('table').classList.toggle('six-seats', sixSeats);
+  // Seats 4 and 5 only exist in 6-seat mode
+  document.getElementById('seat-4').style.display = sixSeats ? '' : 'none';
+  document.getElementById('seat-5').style.display = sixSeats ? '' : 'none';
+}
+
+function startSoloGame() {
+  myName = getPlayerName() || 'You';
+  isSolo = true;
+  isHost = true;
+  mySeatIdx = 0;
+  humanSeats = [0];
+  myRoomCode = '';
+  MAX_SEATS = 4;
+  disabledAISeats = new Set();
+  setSeatVisibility();
+  initPlayers();
+  enterGame();
+}
+
+function startMultiplayerGame() {
+  if (!isHost) return;
+  MAX_SEATS = 6;
+  setSeatVisibility();
+  clientConns.forEach(c => {
+    c.conn.send({ type:'startGame', humanSeats, seatIdx: c.seatIdx, maxSeats: 6 });
+  });
+  enterGame();
+}
+
+function enterGame() {
+  document.getElementById('lobby').style.display = 'none';
+  const gw = document.getElementById('game-wrapper');
+  gw.style.display = '';
+  gw.classList.add('active');
+  document.getElementById('stats-panel').style.display = 'block';
+  document.getElementById('message-bar').style.display = 'block';
+  document.getElementById('controls').style.display = 'flex';
+
+  if (!isSolo) {
+    document.getElementById('room-badge').style.display = 'block';
+    document.getElementById('room-badge').textContent = 'ROOM: ' + myRoomCode;
+    document.getElementById('net-badge').style.display = 'block';
+  }
+  // Show chat for both solo and multiplayer
+  document.getElementById('chat-panel').style.display = 'flex';
+  if (!isSolo) {
+    // If the ECDH sessionKey has already arrived (fast host), init now.
+    // Otherwise initChatCrypto() will be called by the sessionKey handler once
+    // the secret is established — prevents the race where startGame arrives
+    // before sessionKey completes the ECDH round-trip.
+    if (sessionSecret) {
+      initChatCrypto();
+    }
+    // else: initChatCrypto() fires from the sessionKey handler (see handleClientReceive)
+  } else {
+    appendSystemMsg('Solo game started. Good luck!');
+  }
+  // Show main menu button
+  document.getElementById('btn-main-menu').style.display = 'block';
+
+  if (isHost) {
+    initPlayers();
+    buildDifficultyPanel();
+    document.getElementById('difficulty-panel').style.display = 'block';
+    document.getElementById('btn-host-deal').style.display = 'inline-block';
+  }
+
+  // Mark player's own seat
+  document.getElementById(`info-${mySeatIdx}`).classList.add('is-you');
+
+  setMessage(isHost ? 'You are the host. Press Deal to start!' : 'Waiting for host to deal…');
+  updateUI();
+  updateControls();
+  scaleTableScene();
+}
+
+function initPlayers() {
+  players = [];
+  for (let i = 0; i < MAX_SEATS; i++) {
+    const isHuman = humanSeats.includes(i);
+    const isDisabled = !isHuman && disabledAISeats.has(i);
+    let name, persona;
+    if (i === mySeatIdx) {
+      name = myName;
+      persona = null;
+    } else if (isHuman) {
+      const info = clientConns.find(c => c.seatIdx === i);
+      name = info ? info.name : `Player ${i+1}`;
+      persona = null;
+    } else {
+      persona = AI_PERSONAS[i] || { name:`Bot ${i+1}`, style:'Balanced', aggression:0.55, bluffFreq:0.10, tightness:0.50, betSizeMult:1.00 };
+      name = persona.name;
+    }
+    players.push({
+      id: i, name, stack: STARTING_STACK,
+      hand: [], bet: 0, folded: false, allIn: false,
+      isAI: !isHuman, eliminated: isDisabled, // disabled AI seats start eliminated
+      persona: isHuman ? null : persona
+    });
+  }
+}
+
+function buildDifficultyPanel() {
+  // F-02: use DOM API (no innerHTML with interpolation) to prevent XSS
+  const container = document.getElementById('diff-rows');
+  container.innerHTML = '';
+  let count = 0;
+  for (let i = 0; i < MAX_SEATS; i++) {
+    if (humanSeats.includes(i)) continue;
+    if (players[i] && players[i].eliminated) continue;
+    const p = players[i];
+    const styleText = p && p.persona ? p.persona.style : '';
+
+    const row = document.createElement('div');
+    row.className = 'diff-row';
+
+    const nameCol = document.createElement('div');
+    nameCol.className = 'diff-name-col';
+
+    const nameEl = document.createElement('span');
+    nameEl.className = 'diff-name';
+    nameEl.textContent = p ? sanitizeText(p.name) : `Seat ${i + 1}`;
+
+    const styleEl = document.createElement('span');
+    styleEl.className = 'diff-style';
+    styleEl.id = `style-label-${i}`;
+    styleEl.textContent = sanitizeText(styleText);
+
+    nameCol.appendChild(nameEl);
+    nameCol.appendChild(styleEl);
+
+    const sel = document.createElement('select');
+    sel.className = 'diff-select';
+    sel.id = `diff-${i}`;
+    sel.addEventListener('change', (function(seatIdx) {
+      return function() { applyDifficulty(seatIdx); };
+    })(i));
+    ['easy', 'medium', 'hard'].forEach(val => {
+      const opt = document.createElement('option');
+      opt.value = val;
+      opt.textContent = val.charAt(0).toUpperCase() + val.slice(1);
+      if (val === 'medium') opt.selected = true;
+      sel.appendChild(opt);
+    });
+
+    row.appendChild(nameCol);
+    row.appendChild(sel);
+    container.appendChild(row);
+    count++;
+  }
+  const panel = document.getElementById('difficulty-panel');
+  if (count === 0) {
+    panel.style.display = 'none';
+  } else {
+    panel.style.display = 'block';
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  DECK
+// ═══════════════════════════════════════════════════════════
+function buildDeck() {
+  deck = [];
+  dealtCardIds = new Set();
+  for (let s of SUITS) for (let r of RANKS) deck.push({ rank:r, suit:s });
+  shuffle(deck);
+}
+function shuffle(arr) {
+  // Bug fix: Math.random() is not cryptographically secure — use CSPRNG for fair card distribution
+  const randomBytes = crypto.getRandomValues(new Uint32Array(arr.length));
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = randomBytes[i] % (i + 1);
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+}
+let dealtCardIds = new Set();
+function dealCard() {
+  // Pop cards until we find one not already dealt (guards against any state corruption)
+  while (deck.length > 0) {
+    const card = deck.pop();
+    const id = card.rank + card.suit;
+    if (!dealtCardIds.has(id)) {
+      dealtCardIds.add(id);
+      return card;
+    }
+  }
+  // Fallback: should never happen with a clean deck
+  console.error('Deck exhausted unexpectedly');
+  return { rank: '?', suit: '?' };
+}
+
+// ═══════════════════════════════════════════════════════════
+//  CARD RENDERING
+// ═══════════════════════════════════════════════════════════
+function isRed(suit) { return suit==='♥'||suit==='♦'; }
+function cardHTML(card) {
+  const cls = isRed(card.suit)?'red':'black';
+  return `<div class="card ${cls}">
+    <div class="corner-tl"><div>${card.rank}</div><div>${card.suit}</div></div>
+    <div>${card.suit}</div>
+    <div class="corner-br"><div>${card.rank}</div><div>${card.suit}</div></div>
+  </div>`;
+}
+function renderCommunityCards() {
+  const el = EL['community-cards'];
+  let html = '';
+  for (let i = 0; i < 5; i++) {
+    html += i < communityCards.length ? cardHTML(communityCards[i]) : '<div class="card-placeholder"></div>';
+  }
+  el.innerHTML = html;
+}
+function renderPlayerCards(pid, reveal=false) {
+  const el = EL.cards[pid];
+  const p = players[pid];
+  if (!p || !p.hand || p.hand.length === 0) { if (el) el.innerHTML = ''; return; }
+  const show = pid === mySeatIdx || reveal || (p.isAI && reveal);
+  let html = '';
+  if (show) { for (let c of p.hand) html += cardHTML(c); }
+  else html = '<div class="card-back"></div><div class="card-back"></div>';
+  el.innerHTML = html;
+}
+function renderAllCards(revealAll=false) {
+  for (let i=0;i<MAX_SEATS;i++) renderPlayerCards(i, revealAll);
+  renderCommunityCards();
+}
+
+// ═══════════════════════════════════════════════════════════
+//  UI
+// ═══════════════════════════════════════════════════════════
+function updateUI() {
+  EL['pot-display'].textContent = `POT: $${pot.toLocaleString()}`;
+  EL['phase-label'].textContent = phase.toUpperCase();
+  for (let p of players) {
+    EL.pname[p.id].textContent = p.name;
+    EL.stack[p.id].textContent = p.eliminated ? '💀 Eliminated' : `$${p.stack.toLocaleString()}`;
+    EL.bet[p.id].textContent   = p.bet > 0 ? `Bet: $${p.bet.toLocaleString()}` : '';
+    const info = EL.info[p.id];
+    info.classList.toggle('folded',      p.folded || p.eliminated);
+    info.classList.toggle('active',      currentPlayerIdx === p.id && handInProgress && !p.eliminated);
+    info.classList.toggle('dealer',      dealerIdx === p.id && !p.eliminated);
+    info.classList.toggle('small-blind', handInProgress && p.id === smallBlindIdx && phase === 'preflop' && !p.eliminated);
+    info.classList.toggle('big-blind',   handInProgress && p.id === bigBlindIdx   && phase === 'preflop' && !p.eliminated);
+  }
+  // renderAllCards() already calls renderCommunityCards(); only call it here when
+  // updateUI is called standalone (not preceded by renderAllCards)
+  renderCommunityCards();
+  updateStats();
+
+  // Host deal button visibility
+  const dealBtn = EL['btn-host-deal'];
+  if (isHost && dealBtn) dealBtn.style.display = handInProgress ? 'none' : 'inline-block';
+  EL['btn-next-hand'].style.display = isHost ? 'inline-block' : 'none';
+}
+
+function setActionLabel(pid, text) {
+  const el = EL.actionLabel[pid];
+  if (el) el.textContent = text;
+}
+function clearActionLabels() { for (let i = 0; i < MAX_SEATS; i++) { if (EL.actionLabel[i]) EL.actionLabel[i].textContent = ''; } }
+function setMessage(msg) { EL['message-bar'].textContent = msg; }
+
+function updateStats() {
+  EL['stat-hands'].textContent      = stats.hands;
+  EL['stat-wins'].textContent       = stats.wins;
+  EL['stat-biggest'].textContent    = `$${stats.biggest.toLocaleString()}`;
+  if (EL['stat-fold-worse']) EL['stat-fold-worse'].textContent = stats.foldedToWorse;
+  if (EL['stat-bluffs'])     EL['stat-bluffs'].textContent     = stats.successfulBluffs;
+  const myStack = players[mySeatIdx] ? players[mySeatIdx].stack : STARTING_STACK;
+  const pnl = myStack - stats.startStack;
+  const pnlEl = EL['stat-pnl'];
+  pnlEl.textContent = (pnl >= 0 ? '+' : '') + `$${pnl.toLocaleString()}`;
+  pnlEl.style.color = pnl >= 0 ? '#7fba7f' : '#e07070';
+}
+
+function updateControls() {
+  const myTurn = handInProgress && currentPlayerIdx===mySeatIdx && playersToAct.length>0 && playersToAct[0]===mySeatIdx;
+  const p = players[mySeatIdx];
+  if (!p) return;
+  const isBBOption = phase === 'preflop' && mySeatIdx === bigBlindIdx && currentBet === BIG_BLIND;
+  const canCheck = currentBet===0 || p.bet===currentBet || isBBOption;
+  const callAmt = Math.min(currentBet-p.bet, p.stack);
+
+  EL['btn-fold'].disabled  = !myTurn;
+  EL['btn-check'].disabled = !myTurn || !canCheck;
+  EL['btn-call'].disabled  = !myTurn || canCheck;
+  EL['btn-raise'].disabled = !myTurn;
+  EL['btn-allin'].disabled = !myTurn;
+  EL['btn-call'].textContent = `Call $${callAmt.toLocaleString()}`;
+
+  if (myTurn) {
+    const minRaise = Math.max(currentBet * 2, BIG_BLIND * 2);
+    const ri = EL['raise-input'];
+    ri.value = minRaise;
+    ri.min   = minRaise;
+    EL['btn-raise'].textContent = canCheck ? 'Bet' : 'Raise';
+    EL['raise-area'].querySelector('.raise-label').textContent = canCheck ? 'Bet:' : 'Raise:';
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  HOST DEAL
+// ═══════════════════════════════════════════════════════════
+function hostDeal() {
+  if (!isHost || handInProgress) return;
+  startHand();
+}
+
+// ═══════════════════════════════════════════════════════════
+//  HAND FLOW
+// ═══════════════════════════════════════════════════════════
+function nextActiveSeat(from, steps=1) {
+  let idx = from;
+  for (let i = 0; i < steps; i++) {
+    let found = false;
+    for (let j = 1; j <= MAX_SEATS; j++) {
+      const next = (idx + j) % MAX_SEATS;
+      if (!players[next].eliminated) { idx = next; found = true; break; }
+    }
+    if (!found) return idx;
+  }
+  return idx;
+}
+
+function startHand() {
+  clearTimeout(npcThinkTimeout);
+  clearTimeout(runOutTimeout);
+  runOutTimeout = null;
+
+  // Eliminate busted AI players; check humans
+  players.forEach(p => {
+    if (p.stack <= 0 && p.isAI && !p.eliminated) {
+      p.eliminated = true;
+      appendSystemMsg(`💀 ${p.name} has been eliminated!`);
+      buildDifficultyPanel(); // refresh panel to remove eliminated AI
+      // Banter: eliminated AI gets a parting word
+      if (isSolo) triggerAIBanter('ai_eliminated', p.id);
+    }
+  });
+
+  // Count active (non-eliminated) players
+  const activePlayers = players.filter(p => !p.eliminated);
+  if (activePlayers.length < 2) {
+    // Game over — show the overlay with stats and new-game / menu buttons
+    const lastStanding = activePlayers[0] || players[mySeatIdx];
+    showGameOver(lastStanding);
+    return;
+  }
+
+  const me = players[mySeatIdx];
+  if (me && me.stack<=0) { showBustOverlay(); return; }
+
+  handInProgress = true;
+  communityCards = [];
+  pot = 0; currentBet = 0; playersToAct = [];
+  foldSnapshot = null;   // clear any snapshot from the previous hand
+  buildDeck();
+  players.forEach(p => {
+    p.hand = p.eliminated ? [] : [dealCard(), dealCard()];
+    p.bet = 0; p.folded = p.eliminated; p.allIn = false;
+  });
+  dealerIdx = nextActiveSeat(dealerIdx);
+  // Heads-up rule: with exactly 2 active players the dealer posts the small blind
+  // and acts first preflop; with 3+ players SB is the seat after the dealer.
+  const activeCnt = players.filter(p => !p.eliminated).length;
+  if (activeCnt === 2) {
+    smallBlindIdx = dealerIdx;
+    bigBlindIdx   = nextActiveSeat(dealerIdx);
+  } else {
+    smallBlindIdx = nextActiveSeat(dealerIdx);
+    bigBlindIdx   = nextActiveSeat(smallBlindIdx);
+  }
+  postBlind(smallBlindIdx, SMALL_BLIND);
+  postBlind(bigBlindIdx, BIG_BLIND);
+  currentBet = BIG_BLIND;
+  setActionLabel(smallBlindIdx,'Small Blind');
+  setActionLabel(bigBlindIdx,'Big Blind');
+  phase = 'preflop';
+  stats.hands++;
+  // Occasional pre-hand trash talk (roughly every 3rd hand)
+  if (isSolo && Math.random() < 0.33) {
+    setTimeout(() => triggerAIBanter('hand_start'), 400);
+  }
+  // Bug fix: use nextActiveSeat to skip eliminated seats when finding UTG
+  startBettingRound(nextActiveSeat(bigBlindIdx));
+  const dn=players[dealerIdx].name,sbn=players[smallBlindIdx].name,bbn=players[bigBlindIdx].name;
+  setMessage(`Hand #${stats.hands} | Dealer:${dn} SB:${sbn}($${SMALL_BLIND}) BB:${bbn}($${BIG_BLIND})`);
+  renderAllCards(false);
+  updateUI();
+  updateControls();
+  broadcastState();
+  scheduleNext();
+}
+
+function postBlind(pid, amount) {
+  const p = players[pid];
+  const actual = Math.min(amount, p.stack);
+  p.stack -= actual; p.bet += actual; pot += actual;
+}
+
+function startBettingRound(startPid) {
+  playersToAct = [];
+  for (let i=0;i<players.length;i++) {
+    const pid = (startPid+i)%players.length;
+    if (!players[pid].folded && !players[pid].allIn && !players[pid].eliminated) playersToAct.push(pid);
+  }
+  currentPlayerIdx = playersToAct.length>0 ? playersToAct[0] : -1;
+}
+
+// ═══════════════════════════════════════════════════════════
+//  ACTIONS
+// ═══════════════════════════════════════════════════════════
+function playerAction(action) {
+  // Human action from UI
+  if (!handInProgress) return;
+  if (playersToAct.length===0 || playersToAct[0]!==mySeatIdx) return;
+
+  // Bug fix: parseInt can return NaN if the input is empty/invalid; default to 0
+  const rawRaise = parseInt(document.getElementById('raise-input').value);
+  const raiseAmt = Number.isFinite(rawRaise) && rawRaise >= 0 ? rawRaise : 0;
+
+  if (isHost) {
+    // Host executes directly
+    executeAction(mySeatIdx, action, raiseAmt);
+  } else {
+    // Client sends to host
+    hostConn.send({ type:'action', action, raiseAmt });
+    // Disable buttons while waiting
+    ['btn-fold','btn-check','btn-call','btn-raise','btn-allin'].forEach(id => {
+      document.getElementById(id).disabled = true;
+    });
+  }
+}
+
+function executeAction(pid, action, raiseAmt) {
+  const p = players[pid];
+  const callAmt = Math.min(currentBet-p.bet, p.stack);
+  let raised = false;
+
+  if (action==='fold') {
+    p.folded=true; setActionLabel(pid,'Fold');
+    // Analysis: if this is the human player folding, snapshot their hand so we can
+    // compare it against opponents' holdings at showdown
+    if (pid === mySeatIdx) {
+      foldSnapshot = {
+        hand:      p.hand.slice(),
+        community: communityCards.slice(),
+        phase
+      };
+      // Banter: an AI reacts to the human folding
+      triggerAIBanter('player_folds');
+    }
+  } else if (action==='check') {
+    setActionLabel(pid,'Check');
+  } else if (action==='call') {
+    const c=Math.min(callAmt,p.stack);
+    p.stack-=c; p.bet+=c; pot+=c;
+    if(p.stack===0) p.allIn=true;
+    setActionLabel(pid,`Call $${c}`);
+  } else if (action==='raise') {
+    const rt = raiseAmt || (Math.max(currentBet*2,BIG_BLIND*2));
+    const additional = rt - p.bet;
+    if (additional>0 && additional<=p.stack) {
+      p.stack-=additional; p.bet=rt; pot+=additional;
+      currentBet=rt; raised=true;
+      if(p.stack===0) p.allIn=true;
+      setActionLabel(pid,`Raise $${rt}`);
+      // Banter: AI taunts after a big raise (>3× BB, and only for AI players)
+      if (isSolo && players[pid].isAI && rt >= BIG_BLIND * 6) {
+        triggerAIBanter('big_raise', pid);
+      }
+    } else {
+      // Fallback to call
+      const c=Math.min(callAmt,p.stack);
+      p.stack-=c; p.bet+=c; pot+=c;
+      if(p.stack===0) p.allIn=true;
+      setActionLabel(pid,`Call $${c}`);
+    }
+  } else if (action==='allin') {
+    const amt=p.stack; p.stack=0; p.bet+=amt; pot+=amt;
+    if(p.bet>currentBet){currentBet=p.bet; raised=true;}
+    p.allIn=true; setActionLabel(pid,'All-In!');
+    // Banter: AI trash-talks its own all-in, or reacts to the human going all-in
+    if (isSolo) {
+      if (players[pid].isAI) {
+        triggerAIBanter('ai_allin', pid);
+      } else if (pid === mySeatIdx) {
+        triggerAIBanter('player_allin');
+      }
+    }
+  }
+
+  recordAction(raised);
+}
+
+function recordAction(raisedNewBet) {
+  const actedPid = playersToAct.shift();
+  if (raisedNewBet) {
+    for (let i=1;i<=players.length;i++) {
+      const pid=(actedPid+i)%players.length;
+      if (!players[pid].folded && !players[pid].allIn && !playersToAct.includes(pid)) {
+        playersToAct.push(pid);
+      }
+    }
+  }
+  playersToAct = playersToAct.filter(pid => !players[pid].folded && !players[pid].allIn && !players[pid].eliminated);
+  const stillIn = players.filter(p=>!p.folded && !p.eliminated);
+  if (stillIn.length===1) { endHand(); return; }
+  if (playersToAct.length===0) {
+    const canAct = players.filter(p=>!p.folded&&!p.allIn&&!p.eliminated);
+    if (canAct.length<=1) { runOutBoard(); return; }
+    nextPhase(); return;
+  }
+  currentPlayerIdx = playersToAct[0];
+  updateUI(); updateControls(); broadcastState();
+  scheduleNext();
+}
+
+function scheduleNext() {
+  if (!isHost) return;
+  if (playersToAct.length===0) return;
+  const pid = playersToAct[0];
+  if (!players[pid].isAI) {
+    // Human player — broadcast state so they can act
+    setMessage(`Waiting for ${players[pid].name}…`);
+    broadcastState();
+    return;
+  }
+  setMessage(`${players[pid].name} is thinking…`);
+  broadcastState();
+  clearTimeout(npcThinkTimeout);
+  npcThinkTimeout = setTimeout(() => npcAction(pid), 800+Math.random()*700);
+}
+
+function nextPhase() {
+  players.forEach(p=>{ p.bet=0; });
+  currentBet=0; clearActionLabels();
+  if (phase==='preflop') {
+    phase='flop';
+    communityCards.push(dealCard()); communityCards.push(dealCard()); communityCards.push(dealCard());
+    setMessage('🂠 The Flop!');
+  } else if (phase==='flop') {
+    phase='turn'; communityCards.push(dealCard()); setMessage('🂠 The Turn!');
+  } else if (phase==='turn') {
+    phase='river'; communityCards.push(dealCard()); setMessage('🂠 The River!');
+  } else if (phase==='river') { endHand(); return; }
+  startBettingRound(nextActiveSeat(dealerIdx));  // Bug fix: was (dealerIdx+1)%MAX_SEATS, could land on eliminated seat
+  updateUI(); updateControls(); broadcastState(); scheduleNext();
+}
+
+function runOutBoard() {
+  players.forEach(p=>{ p.bet=0; }); currentBet=0; clearActionLabels(); playersToAct=[];
+  for (let i=0;i<players.length;i++) { if(!players[i].folded) renderPlayerCards(i,true); }  // Bug fix: was i=1, skipped seat 0
+  const handId = stats.hands; // snapshot — if a new hand starts, callbacks from this one are stale
+  const deal = () => {
+    if (stats.hands !== handId) return; // stale — a new hand started, abort
+    if (communityCards.length<3) { communityCards.push(dealCard(),dealCard(),dealCard()); phase='flop'; }
+    else if (communityCards.length<4) { communityCards.push(dealCard()); phase='turn'; }
+    else if (communityCards.length<5) { communityCards.push(dealCard()); phase='river'; }
+    updateUI(); broadcastState();
+    if (communityCards.length<5) runOutTimeout = setTimeout(deal, 700);
+    else runOutTimeout = setTimeout(endHand, 700);
+  };
+  deal();
+}
+
+function endHand() {
+  handInProgress=false; phase='showdown'; playersToAct=[];
+  const active = players.filter(p=>!p.folded && !p.eliminated);
+  let winners = [], handResult;
+
+  if (active.length===1) {
+    winners = [active[0]];
+    handResult = 'Last player standing';
+  } else {
+    // Single-pass: evaluate each player then collect all tied at the best value
+    let bestVal = -1, bestHandResult = null;
+    const evaluated = active.map(p => {
+      const res = evaluateBestHand(p.hand, communityCards);
+      if (res.value > bestVal) { bestVal = res.value; bestHandResult = res; }
+      return { p, res };
+    });
+    handResult = bestHandResult ? bestHandResult.name : '';
+    for (const { p, res } of evaluated) {
+      if (res.value === bestVal) { p._best5 = res.cards; winners.push(p); }
+    }
+  }
+
+  if (winners.length === 0) {
+    console.error('endHand: could not determine winner(s)');
+    return;
+  }
+
+  // Split pot equally; any odd chips (rounding) go to the first winner (standard rule)
+  const share     = Math.floor(pot / winners.length);
+  const remainder = pot - share * winners.length;
+  winners.forEach((w, i) => { w.stack += share + (i === 0 ? remainder : 0); });
+
+  const myWin = winners.find(w => w.id === mySeatIdx);
+  if (myWin) {
+    stats.wins++;
+    if (pot > stats.biggest) stats.biggest = pot;
+  }
+
+  // ── Post-hand analysis ──────────────────────────────────────
+  // Analysis A: did the player fold a hand that would have beaten someone?
+  if (foldSnapshot) {
+    const finalCommunity = communityCards.slice();
+    const foldedVal = evaluateBestHand(foldSnapshot.hand, finalCommunity).value;
+    const wouldHaveBeatSomeone = active.some(opp => {
+      if (opp.id === mySeatIdx) return false;
+      return foldedVal > evaluateBestHand(opp.hand, finalCommunity).value;
+    });
+    if (wouldHaveBeatSomeone) stats.foldedToWorse++;
+    foldSnapshot = null;
+  }
+
+  // Analysis B: successful bluff — player won, all opponents folded (no showdown),
+  // and the player's own hand is weak (below one pair = hand rank 0)
+  if (myWin && active.length === 1) {
+    const myHandVal = evaluateBestHand(myWin.hand, communityCards);
+    if (myHandVal.value < 1000000) { stats.successfulBluffs++; }
+  }
+  // ── End analysis ────────────────────────────────────────────
+
+  broadcastState();
+  if (winners.length > 1) {
+    showSplitPot(winners, handResult);
+  } else {
+    showWinner(winners[0], handResult);
+  }
+  updateUI();
+
+  // ── Banter hooks ────────────────────────────────────────────
+  if (isSolo) {
+    const humanWon  = !!myWin;
+    const aiWinner  = winners.find(w => w.isAI);
+    if (humanWon && winners.length === 1) {
+      // Human won — any AI grumbles
+      triggerAIBanter('player_wins');
+    } else if (aiWinner && !humanWon) {
+      // An AI won — that AI gloats
+      triggerAIBanter('ai_wins', aiWinner.id);
+    }
+    // If human is now running low, pile on
+    const me = players[mySeatIdx];
+    if (me && me.stack > 0 && me.stack < STARTING_STACK * 0.25) {
+      setTimeout(() => triggerAIBanter('player_low'), 2800);
+    }
+  }
+}
+
+function showWinner(winner, handName) {
+  EL['winner-title'].textContent  = winner.id===mySeatIdx ? '🏆 You Win!' : `${winner.name} Wins!`;
+  EL['winner-hand'].textContent   = handName;
+  EL['winner-amount'].textContent = `+$${pot.toLocaleString()}`;
+  const best5 = winner._best5 || getBest5Cards(winner.hand, communityCards);
+  winner._best5 = null;
+  EL['winner-cards'].innerHTML = best5.map(cardHTML).join('');
+  EL['winner-overlay'].classList.add('show');
+  renderAllCards(true);
+}
+
+function showSplitPot(winners, handName) {
+  const share = Math.floor(pot / winners.length);
+  const names = winners.map(w => w.id === mySeatIdx ? 'You' : w.name).join(' & ');
+  EL['winner-title'].textContent  = `🤝 Split Pot — ${names}`;
+  EL['winner-hand'].textContent   = handName;
+  EL['winner-amount'].textContent = `$${share.toLocaleString()} each`;
+  // Show all winners' best hands side by side
+  EL['winner-cards'].innerHTML = winners.map(w => {
+    const best5 = w._best5 || getBest5Cards(w.hand, communityCards);
+    w._best5 = null;
+    return `<div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:center">${best5.map(cardHTML).join('')}</div>`;
+  }).join('<div style="width:100%;height:4px;"></div>');
+  EL['winner-overlay'].classList.add('show');
+  renderAllCards(true);
+}
+
+function nextHand() {
+  document.getElementById('winner-overlay').classList.remove('show');
+  clearTimeout(runOutTimeout); runOutTimeout = null;
+  phase='waiting'; handInProgress=false; communityCards=[]; pot=0; currentBet=0;
+  playersToAct=[];
+  players.forEach(p=>{ p.hand=[]; p.bet=0; p.folded=false; p.allIn=false; });  // Bug fix: clear allIn and pot
+  renderAllCards(false);
+  updateUI(); updateControls(); broadcastState();
+  setMessage('Press Deal to start the next hand!');
+}
+
+function showBustOverlay() {
+  handInProgress=false; playersToAct=[]; updateControls();
+  const pnl = (players[mySeatIdx]?.stack||0) - stats.startStack;
+  EL['bust-stats'].innerHTML =
+    `Hands: <b>${stats.hands}</b>&nbsp;&nbsp;Wins: <b>${stats.wins}</b><br>` +
+    `Net: <b style="color:#e07070">$${pnl.toLocaleString()}</b><br>` +
+    `🤦 Fold Regrets: <b>${stats.foldedToWorse}</b>&nbsp;&nbsp;🎭 Bluffs: <b>${stats.successfulBluffs}</b>`;
+  EL['bust-overlay'].style.display='flex';
+}
+
+function showGameOver(winnerPlayer) {
+  handInProgress = false; playersToAct = []; updateControls();
+  broadcastState();
+  const isMyWin = winnerPlayer && winnerPlayer.id === mySeatIdx;
+  const pnl = (players[mySeatIdx]?.stack || 0) - stats.startStack;
+
+  EL['gameover-title'].textContent    = isMyWin ? '🏆 You Win!' : `${winnerPlayer ? winnerPlayer.name : 'Someone'} Wins!`;
+  EL['gameover-subtitle'].textContent = isMyWin ? 'You eliminated all opponents!' : 'Better luck next time.';
+  EL['gameover-stats'].innerHTML =
+    `Hands: <b>${stats.hands}</b>&nbsp;&nbsp;Wins: <b>${stats.wins}</b><br>` +
+    `Net: <b style="color:${pnl >= 0 ? '#7fba7f' : '#e07070'}">${pnl >= 0 ? '+' : ''}$${pnl.toLocaleString()}</b><br>` +
+    `<span title="Hands you folded that would have beaten at least one opponent" style="opacity:0.85">🤦 Fold Regrets: <b>${stats.foldedToWorse}</b></span>&nbsp;&nbsp;` +
+    `<span title="Times you won with high card only, all opponents folded" style="opacity:0.85">🎭 Bluffs: <b>${stats.successfulBluffs}</b></span>`;
+
+  // Show "New Game" only in solo — multiplayer players should return to lobby
+  EL['gameover-btn-newgame'].style.display = isSolo ? 'inline-block' : 'none';
+
+  EL['gameover-overlay'].style.display = 'flex';
+}
+
+function newGame() {
+  document.getElementById('bust-overlay').style.display='none';
+  EL['gameover-overlay'].style.display = 'none';
+  stats={hands:0,wins:0,biggest:0,startStack:STARTING_STACK,foldedToWorse:0,successfulBluffs:0};
+  foldSnapshot = null;
+  _banterQueue = []; _banterDraining = false; // clear any pending banter
+  dealerIdx=0; handInProgress=false; communityCards=[]; pot=0; currentBet=0; playersToAct=[];
+  initPlayers();
+  renderAllCards(false); updateUI(); updateControls();
+  setMessage('New game! Press Deal to start.');
+  if (isHost) broadcastState();
+}
+
+// ═══════════════════════════════════════════════════════════
+//  NPC AI
+// ═══════════════════════════════════════════════════════════
+function applyDifficulty(pid) {
+  const diff = getDiff(pid);
+  const p = players[pid];
+  if (!p || !p.persona) return;
+
+  // Scale persona traits by difficulty without losing the personality character.
+  // Easy  → flatten aggression down, raise tightness (folds more), reduce bluffing
+  // Medium → use the persona as-is
+  // Hard  → amplify aggression, more bluffing, slightly looser
+  const base = p.persona;
+  if (diff === 'easy') {
+    p.persona._eff = {
+      aggression:  base.aggression * 0.55,
+      bluffFreq:   base.bluffFreq  * 0.50,
+      tightness:   Math.min(base.tightness + 0.20, 0.90),
+      betSizeMult: base.betSizeMult * 0.75,
+    };
+  } else if (diff === 'hard') {
+    p.persona._eff = {
+      aggression:  Math.min(base.aggression * 1.25, 0.97),
+      bluffFreq:   Math.min(base.bluffFreq  * 1.60, 0.40),
+      tightness:   Math.max(base.tightness  - 0.15, 0.08),
+      betSizeMult: base.betSizeMult * 1.25,
+    };
+  } else {
+    p.persona._eff = null; // use base values
+  }
+  // Update the style label to reflect difficulty
+  const label = document.getElementById(`style-label-${pid}`);
+  if (label) {
+    const diffLabel = diff === 'easy' ? ' · Easy' : diff === 'hard' ? ' · Hard' : '';
+    label.textContent = base.style + diffLabel;
+  }
+}
+
+function getPersonaTraits(pid) {
+  const p = players[pid];
+  if (!p || !p.persona) return { aggression:0.55, bluffFreq:0.08, tightness:0.45, betSizeMult:1.0 };
+  return p.persona._eff || p.persona;
+}
+
+function getDiff(pid) {
+  const el = document.getElementById(`diff-${pid}`);
+  return el ? el.value : 'medium';
+}
+
+function npcAction(pid) {
+  const p = players[pid];
+  const traits = getPersonaTraits(pid);
+  const handStrength = evaluateHandStrength(pid);
+  const callAmt = Math.min(currentBet - p.bet, p.stack);
+  const facingBet = currentBet > p.bet;
+
+  const potAfterCall = pot + callAmt;
+  const potOdds = potAfterCall > 0 ? callAmt / potAfterCall : 0;
+  const callFraction = p.stack > 0 ? callAmt / p.stack : 1;
+  const betPressure = pot > 0 ? Math.min(callAmt / pot, 2.0) : 0;
+  const canRaise = Math.floor(currentBet / BIG_BLIND) < 10 && callAmt < p.stack * 0.75;
+  const inPos = pid === dealerIdx || ((pid - dealerIdx + MAX_SEATS) % MAX_SEATS) > ((currentPlayerIdx - dealerIdx + MAX_SEATS) % MAX_SEATS);
+
+  const r = Math.random();
+  const isBluffing = r < traits.bluffFreq;
+  const eff = isBluffing ? Math.min(handStrength + traits.bluffFreq * 1.2, 1.0) : handStrength;
+
+  let action;
+
+  if (!facingBet) {
+    // Bet/raise frequency driven by aggression and hand strength
+    const raiseThreshold = 1.0 - traits.aggression; // lower aggression → higher threshold to raise
+    if (canRaise && eff > raiseThreshold) {
+      action = 'raise';
+    } else if (canRaise && isBluffing && inPos && r < traits.aggression * 0.5) {
+      action = 'raise';
+    } else {
+      action = 'check';
+    }
+  } else {
+    // Fold threshold: base from tightness + pressure scaling
+    // Tight AIs (high tightness) fold more readily; loose AIs need less to call
+    const baseFold = 0.12 + traits.tightness * 0.28;
+    const foldAt = baseFold + potOdds * 0.6 + betPressure * (0.10 + traits.tightness * 0.14) + callFraction * 0.10;
+
+    if (canRaise && eff > (0.55 + (1 - traits.aggression) * 0.20) && r < traits.aggression) {
+      action = 'raise';
+    } else if (eff >= foldAt || (callFraction < 0.05 && eff > 0.10)) {
+      action = 'call';
+    } else {
+      action = 'fold';
+    }
+  }
+
+  // Raise sizing — scaled by persona's betSizeMult
+  const baseRaise = Math.max(currentBet * 2.2, BIG_BLIND * 3);
+  const potContrib = pot * (0.35 + handStrength * 0.40) * traits.betSizeMult;
+  let raiseAmt = Math.round((baseRaise + potContrib) / 50) * 50;
+  raiseAmt = Math.min(raiseAmt, p.stack + p.bet);
+
+  executeAction(pid, action, raiseAmt);
+}
+
+// ═══════════════════════════════════════════════════════════
+//  HAND EVALUATION
+// ═══════════════════════════════════════════════════════════
+function evaluateHandStrength(pid) {
+  const p=players[pid];
+  if(communityCards.length===0) return preflopStrength(p.hand);
+  return Math.min(getBestHandValue(p.hand,communityCards)/8000000,1);
+}
+function preflopStrength(hand) {
+  const [c1,c2]=hand;
+  const v1=RANK_VAL[c1.rank],v2=RANK_VAL[c2.rank];
+  const suited=c1.suit===c2.suit,pair=v1===v2;
+  const hi=Math.max(v1,v2),lo=Math.min(v1,v2),gap=hi-lo;
+  if(pair) return 0.5+(v1-2)/24;
+  let s=(hi+lo)/28;
+  if(suited) s+=0.08; if(gap===1) s+=0.05; if(gap<=3) s+=0.03;
+  return Math.min(s,1);
+}
+function combinations(arr,k) {
+  if(k===0) return [[]]; if(arr.length<k) return [];
+  const [f,...r]=arr;
+  return [...combinations(r,k-1).map(c=>[f,...c]),...combinations(r,k)];
+}
+function getBestHandValue(hole, community) {
+  const all = [...hole, ...community];
+  if (all.length < 5) return evaluateFiveCard(all);
+  let best = -1;
+  for (let c of combinations(all, 5)) { const v = evaluateFiveCard(c); if (v > best) best = v; }
+  return best;
+}
+function getBestHandName(hole, community) {
+  const all = [...hole, ...community];
+  // Guard: if fewer than 5 cards, evaluate directly without combinations
+  if (all.length < 5) return HAND_NAMES[getHandRank(all)];
+  let best = -1, bc;
+  for (let c of combinations(all, 5)) { const v = evaluateFiveCard(c); if (v > best) { best = v; bc = c; } }
+  return HAND_NAMES[getHandRank(bc || all.slice(0, 5))];
+}
+function getBest5Cards(hole, community) {
+  const all = [...hole, ...community];
+  if (all.length <= 5) return all;
+  let best = -1, bc;
+  for (let c of combinations(all, 5)) { const v = evaluateFiveCard(c); if (v > best) { best = v; bc = c; } }
+  return bc || all.slice(0, 5);
+}
+// Single-pass version used at showdown: returns {value, name, cards} in one enumeration
+function evaluateBestHand(hole, community) {
+  const all = [...hole, ...community];
+  if (all.length < 5) {
+    const v = evaluateFiveCard(all);
+    return { value: v, name: HAND_NAMES[getHandRank(all)], cards: all };
+  }
+  let bestVal = -1, bestCards;
+  for (let c of combinations(all, 5)) {
+    const v = evaluateFiveCard(c);
+    if (v > bestVal) { bestVal = v; bestCards = c; }
+  }
+  return { value: bestVal, name: HAND_NAMES[getHandRank(bestCards)], cards: bestCards };
+}
+function getHandRank(cards) {
+  const vals  = cards.map(c => RANK_VAL[c.rank]).sort((a, b) => b - a);
+  const suits = cards.map(c => c.suit);
+  const flush = suits.every(s => s === suits[0]);
+  const uv    = [...new Set(vals)].sort((a, b) => b - a);
+  let straight = false, shi = 0;
+  for (let i = 0; i <= uv.length - 5; i++) {
+    if (uv[i] - uv[i+4] === 4) { straight = true; shi = uv[i]; break; }
+  }
+  if (!straight && vals.includes(14) && vals.includes(2) && vals.includes(3) && vals.includes(4) && vals.includes(5)) {
+    straight = true; shi = 5;
+  }
+  const counts = {};
+  for (let v of vals) counts[v] = (counts[v] || 0) + 1;
+  const cnt = Object.values(counts).sort((a, b) => b - a);
+  if (straight && flush) return shi === 14 ? 9 : 8;
+  if (cnt[0] === 4) return 7;
+  if (cnt[0] === 3 && cnt[1] === 2) return 6;
+  if (flush)    return 5;
+  if (straight) return 4;
+  if (cnt[0] === 3) return 3;
+  if (cnt[0] === 2 && cnt[1] === 2) return 2;
+  if (cnt[0] === 2) return 1;
+  return 0;
+}
+function evaluateFiveCard(cards) {
+  const rank   = getHandRank(cards);
+  const vals   = cards.map(c => RANK_VAL[c.rank]).sort((a, b) => b - a);
+  const counts = {};
+  for (let v of vals) counts[v] = (counts[v] || 0) + 1;
+  // Sort groups: primary by count desc, secondary by rank desc
+  const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1] || b[0] - a[0]);
+  let score = rank * 1000000;
+  sorted.forEach((e, i) => { score += +e[0] * Math.pow(15, 4 - i); });
+  return score;
+}
+
+// ═══════════════════════════════════════════════════════════
+//  MOBILE SCALING
+// ═══════════════════════════════════════════════════════════
+function scaleTableScene() {
+  const scene = document.getElementById('table-scene');
+  if (!scene) return;
+  const isMobile = window.innerWidth < 860;
+  if (!isMobile) {
+    scene.style.transform = '';
+    scene.style.marginBottom = '';
+    scene.style.width = '';
+    scene.style.height = '';
+    return;
+  }
+  const naturalW = 1040;
+  const naturalH = 780;
+  const scale = Math.max(0.26, window.innerWidth / naturalW);
+  scene.style.width  = naturalW + 'px';
+  scene.style.height = naturalH + 'px';
+  scene.style.transform = `scale(${scale})`;
+  scene.style.transformOrigin = 'top center';
+  // CSS transform doesn't affect layout flow, compensate with negative margin
+  scene.style.marginBottom = Math.round((naturalH * scale) - naturalH) + 'px';
+}
+
+let _scaleDebounce = null;
+window.addEventListener('resize', () => {
+  clearTimeout(_scaleDebounce);
+  _scaleDebounce = setTimeout(scaleTableScene, 80);
 });
 
-// Animate bar 3 to flicker when waiting
-setInterval(() => { if (!document.getElementById('b3').classList.contains('lit')) document.getElementById('b3').classList.toggle('dim'); }, 1800);
+// F-05: Sync chat input maxlength to the single CHAT_MAX_LEN constant
+document.addEventListener('DOMContentLoaded', () => {
+  buildDOMCache();
+  if (EL['chat-input']) EL['chat-input'].maxLength = CHAT_MAX_LEN;
+});
 
-// Start
-initPeer();
+
+// ═══════════════════════════════════════════════════════════
+//  CHAT — SECURE ENCRYPTED CHAT
+//  Security properties (post-audit fixes applied):
+//    • AES-GCM-256 encryption
+//    • ECDH (P-256) key exchange — session secret never transmitted in plaintext (F-01)
+//    • HMAC-SHA-256 per-sender signing key (prevents cross-seat message forgery)
+//    • Monotonic sequence numbers (replay attack prevention; F-06: timestamp check removed)
+//    • Counter-hybrid IVs (uniqueness guaranteed)
+//    • Rate limiting on ALL senders including host, keyed by seatIdx (F-04)
+//    • Payload and message-length limits from single CHAT_MAX_LEN constant (F-05)
+//    • XSS-safe rendering via DOM API throughout (F-02)
+//
+//  Trust model (F-07): The host derives the same sessionSecret as all clients
+//  via the ECDH exchange, so the host can read all messages. This is inherent
+//  to the architecture (host runs all game logic). True per-player E2E requires
+//  per-pair ECDH without a shared secret — out of scope for this game.
+//  Players are notified of this in the UI when they join.
+// ═══════════════════════════════════════════════════════════
+
+let chatAESKey    = null;   // AES-GCM-256 for encryption
+let chatHMACKey   = null;   // HMAC-SHA-256 for signing (per sender)
+let chatSeq       = 0;      // outgoing sequence counter
+let chatIVCounter = 0;      // IV counter (hybrid with random bytes)
+let seenSeqs      = {};     // { seatIdx: lastSeqSeen } replay prevention
+let verifyKeyCache = {};    // { seatIdx: CryptoKey } — cached to avoid re-deriving per message
+let chatCollapsed = false;
+let chatUnreadCount = 0;
+
+// ── Key derivation from session secret ──────────────────────
+async function initChatCrypto() {
+  if (!sessionSecret) {
+    appendSystemMsg('⚠ No session secret — chat encryption unavailable');
+    return;
+  }
+  const raw = sessionSecret; // Uint8Array(32)
+
+  // Import as HKDF base key
+  const baseKey = await crypto.subtle.importKey(
+    'raw', raw, 'HKDF', false, ['deriveKey', 'deriveBits']
+  );
+
+  // Derive AES-GCM-256 key
+  chatAESKey = await crypto.subtle.deriveKey(
+    { name: 'HKDF', hash: 'SHA-256',
+      salt: new TextEncoder().encode('holdem-chat-aes'),
+      info: new TextEncoder().encode('aes-gcm-256') },
+    baseKey, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']
+  );
+
+  // Derive per-seat HMAC signing key using seat index as info.
+  // Each seat has a unique signing key derived from the shared session secret.
+  // NOTE: since all peers share the same sessionSecret, any peer can compute
+  // any seat's signing key — this prevents accidental cross-seat attribution
+  // but not deliberate forgery by a malicious peer. See F-07 trust model note.
+  const hmacBits = await crypto.subtle.deriveBits(
+    { name: 'HKDF', hash: 'SHA-256',
+      salt: new TextEncoder().encode('holdem-chat-hmac-seat-' + mySeatIdx),
+      info: new TextEncoder().encode('hmac-sha256') },
+    baseKey, 256
+  );
+  chatHMACKey = await crypto.subtle.importKey(
+    'raw', hmacBits, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign', 'verify']
+  );
+
+  chatSeq = 0;
+  chatIVCounter = 0;
+  seenSeqs = {};
+  verifyKeyCache = {};
+  appendSystemMsg('🔒 Chat encrypted · AES-256-GCM · ECDH key exchange');
+  // F-07: disclose trust model so players understand the host's visibility
+  appendSystemMsg('ℹ️ The room host can read all messages — this is by design.');
+}
+
+// Also derive a verify key for a given seat (to verify their messages) — cached per seat
+async function getVerifyKey(seatIdx) {
+  if (!sessionSecret) return null;
+  if (verifyKeyCache[seatIdx]) return verifyKeyCache[seatIdx];
+  const baseKey = await crypto.subtle.importKey(
+    'raw', sessionSecret, 'HKDF', false, ['deriveBits']
+  );
+  const bits = await crypto.subtle.deriveBits(
+    { name: 'HKDF', hash: 'SHA-256',
+      salt: new TextEncoder().encode('holdem-chat-hmac-seat-' + seatIdx),
+      info: new TextEncoder().encode('hmac-sha256') },
+    baseKey, 256
+  );
+  const key = await crypto.subtle.importKey(
+    'raw', bits, { name: 'HMAC', hash: 'SHA-256' }, false, ['verify']
+  );
+  verifyKeyCache[seatIdx] = key;
+  return key;
+}
+
+// ── Encrypt + sign ───────────────────────────────────────────
+async function encryptChatMsg(text) {
+  if (!chatAESKey || !chatHMACKey) return null;
+
+  // Fully random 96-bit IV — at typical chat volumes (< 2^20 messages/session)
+  // the birthday-attack collision probability is negligible (~1 in 2^72).
+  // This is simpler and safer than the previous counter-hybrid approach which
+  // could produce IV reuse after the 32-bit counter wrapped at 0xFFFFFFFF.
+  const iv = new Uint8Array(12);
+  crypto.getRandomValues(iv);
+  chatIVCounter++; // keep incrementing so seenSeqs replay-check still advances
+
+  const seq = chatSeq++;
+  const payload = JSON.stringify({
+    t: text, s: mySeatIdx, n: seq, ts: Date.now()
+  });
+
+  const ct = await crypto.subtle.encrypt(
+    { name: 'AES-GCM', iv }, chatAESKey, new TextEncoder().encode(payload)
+  );
+
+  // HMAC over iv + ciphertext
+  const ctBytes = new Uint8Array(ct);
+  const toSign = new Uint8Array(iv.length + ctBytes.length);
+  toSign.set(iv); toSign.set(ctBytes, iv.length);
+  const sig = new Uint8Array(await crypto.subtle.sign('HMAC', chatHMACKey, toSign));
+
+  // Pack: [iv(12)][sig(32)][ct]
+  const packed = new Uint8Array(12 + 32 + ctBytes.length);
+  packed.set(iv, 0);
+  packed.set(sig, 12);
+  packed.set(ctBytes, 44);
+  return btoa(String.fromCharCode(...packed));
+}
+
+// ── Decrypt + verify ─────────────────────────────────────────
+async function decryptChatMsg(b64, fromSeatIdx) {
+  if (!chatAESKey) return null;
+  let packed;
+  try { packed = Uint8Array.from(atob(b64), c => c.charCodeAt(0)); }
+  catch(e) { return null; }
+  if (packed.length < 44 + 1) return null;
+
+  const iv  = packed.slice(0, 12);
+  const sig = packed.slice(12, 44);
+  const ct  = packed.slice(44);
+
+  // Verify HMAC using sender's key before decrypting
+  const verifyKey = await getVerifyKey(fromSeatIdx);
+  if (!verifyKey) return null;
+  const toVerify = new Uint8Array(iv.length + ct.length);
+  toVerify.set(iv); toVerify.set(ct, iv.length);
+  const valid = await crypto.subtle.verify('HMAC', verifyKey, sig, toVerify);
+  if (!valid) {
+    appendSystemMsg('⚠ Message signature invalid — discarded');
+    return null;
+  }
+
+  // Decrypt
+  let plain;
+  try {
+    plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, chatAESKey, ct);
+  } catch(e) {
+    appendSystemMsg('⚠ Decryption failed — discarded');
+    return null;
+  }
+
+  let obj;
+  try { obj = JSON.parse(new TextDecoder().decode(plain)); }
+  catch(e) { return null; }
+
+  // Replay check — monotonic sequence numbers are the authoritative replay defence.
+  // F-06: timestamp staleness check removed; cross-peer clock skew causes false positives,
+  // and seq numbers provide stronger, clock-independent replay protection.
+  const lastSeen = seenSeqs[fromSeatIdx] ?? -1;
+  if (typeof obj.n !== 'number' || obj.n <= lastSeen) {
+    appendSystemMsg('⚠ Replayed message blocked');
+    return null;
+  }
+  seenSeqs[fromSeatIdx] = obj.n;
+
+  return obj;
+}
+
+// ── Send ─────────────────────────────────────────────────────
+async function sendChat() {
+  const input = document.getElementById('chat-input');
+  const text = input.value.trim();
+  if (!text) return;
+  if (text.length > CHAT_MAX_LEN) return;
+  // Rate-limit every sender (host and clients) with the same rules
+  if (!chatRateCheck(mySeatIdx)) {
+    appendSystemMsg('⚠ Sending too fast — slow down');
+    input.value = '';
+    return;
+  }
+  input.value = '';
+  appendChatMsg(myName, text, true);
+  if (isSolo) return;
+
+  const payload = await encryptChatMsg(text);
+  if (!payload) { appendSystemMsg('⚠ Encryption failed'); return; }
+
+  const msg = { type: 'chat', from: mySeatIdx, payload };
+  if (isHost) {
+    clientConns.forEach(c => { try { c.conn.send(msg); } catch(e){} });
+  } else {
+    if (hostConn) try { hostConn.send(msg); } catch(e){}
+  }
+}
+
+// ── Receive ──────────────────────────────────────────────────
+async function receiveChat(fromSeat, payload) {
+  const obj = await decryptChatMsg(payload, fromSeat);
+  if (!obj) return;
+  const text = String(obj.t || '');
+  if (text.length > CHAT_MAX_LEN) { appendSystemMsg('⚠ Oversized message blocked'); return; }
+  const senderName = (players && players[fromSeat]) ? players[fromSeat].name : `Seat ${fromSeat+1}`;
+  appendChatMsg(senderName, text, false);
+}
+
+// ── Host relay ───────────────────────────────────────────────
+// F-04: rate-limit map keyed by seatIdx (not conn object) so reconnects don't reset the window
+const chatRateMap = new Map();   // seatIdx → timestamp[]
+const CHAT_MAX = 5, CHAT_WINDOW = 5000;
+
+// Shared rate-check helper — returns true if the sender is within limits
+function chatRateCheck(seatIdx) {
+  const now = Date.now();
+  const ts = (chatRateMap.get(seatIdx) || []).filter(t => now - t < CHAT_WINDOW);
+  ts.push(now);
+  chatRateMap.set(seatIdx, ts);
+  return ts.length <= CHAT_MAX;
+}
+
+async function relayOrReceiveChat(fromConn, data) {
+  // Rate limit — keyed by verified seat index (F-04)
+  if (!chatRateCheck(fromConn._seatIdx)) return;
+  // Size limit — base64 of CHAT_MAX_LEN bytes + overhead; 425 bytes is a safe ceiling
+  if (typeof data.payload !== 'string' || data.payload.length > Math.ceil(CHAT_MAX_LEN * 1.5) + 200) return;
+
+  // Use the connection's verified seat index — ignore client-supplied data.from
+  const trustedFrom = fromConn._seatIdx;
+  const canonicalMsg = { type: 'chat', from: trustedFrom, payload: data.payload };
+
+  // Relay to all other clients with the corrected seat index
+  clientConns.forEach(c => {
+    if (c.conn !== fromConn) try { c.conn.send(canonicalMsg); } catch(e){}
+  });
+  // Host decrypts for itself using the verified seat
+  await receiveChat(trustedFrom, data.payload);
+}
+
+// ── UI helpers ───────────────────────────────────────────────
+function appendChatMsg(sender, text, isMe) {
+  const el = document.getElementById('chat-messages');
+  const div = document.createElement('div');
+  div.className = 'chat-msg' + (isMe ? ' me' : '');
+  const nameSpan = document.createElement('span');
+  nameSpan.className = 'chat-sender';
+  nameSpan.textContent = sender + ':';
+  const textNode = document.createTextNode(' ' + text);
+  div.appendChild(nameSpan);
+  div.appendChild(textNode);
+  el.appendChild(div);
+  el.scrollTop = el.scrollHeight;
+  if (chatCollapsed && !isMe) {
+    chatUnreadCount++;
+    const badge = document.getElementById('chat-unread');
+    badge.textContent = chatUnreadCount;
+    badge.style.display = 'inline';
+  }
+}
+
+function appendSystemMsg(text) {
+  const el = document.getElementById('chat-messages');
+  const div = document.createElement('div');
+  div.className = 'chat-msg system';
+  div.textContent = text;
+  el.appendChild(div);
+  el.scrollTop = el.scrollHeight;
+}
+
+function esc(s) {
+  return String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+function toggleChat() {
+  chatCollapsed = !chatCollapsed;
+  document.getElementById('chat-panel').classList.toggle('collapsed', chatCollapsed);
+  document.getElementById('chat-toggle-icon').textContent = chatCollapsed ? '▼' : '▲';
+  if (!chatCollapsed) {
+    chatUnreadCount = 0;
+    document.getElementById('chat-unread').style.display = 'none';
+    document.getElementById('chat-messages').scrollTop = 99999;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  MAIN MENU BUTTON
+// ═══════════════════════════════════════════════════════════
+function goToMainMenu() {
+  if (handInProgress && !confirm('Leave the current game and return to the main menu?')) return;
+  clearTimeout(npcThinkTimeout);
+  clearTimeout(runOutTimeout); runOutTimeout = null;
+  if (peer) { try { peer.destroy(); } catch(e){} peer = null; }
+  clientConns.forEach(c => { try { c.conn.close(); } catch(e){} });
+  clientConns = [];
+  if (hostConn) { try { hostConn.close(); } catch(e){} hostConn = null; }
+  handInProgress = false; phase = 'waiting';
+  communityCards = []; pot = 0; currentBet = 0; playersToAct = [];
+  isHost = false; isSolo = false; humanSeats = [];
+  MAX_SEATS = 4; disabledAISeats = new Set();
+  setSeatVisibility();
+  stats = { hands:0, wins:0, biggest:0, startStack:STARTING_STACK, foldedToWorse:0, successfulBluffs:0 };
+  foldSnapshot = null;
+  // Reset crypto state
+  chatAESKey = null; chatHMACKey = null;
+  chatSeq = 0; chatIVCounter = 0; seenSeqs = {}; verifyKeyCache = {};
+  sessionSecret = null;
+  _ecdhKeyPair = null; _ecdhPeerPublicKey = null;  // F-01: clear ECDH state
+  chatRateMap.clear();   // F-04: clear per-seat rate-limit history
+  chatUnreadCount = 0;
+  _banterQueue = []; _banterDraining = false; // clear pending banter on exit
+  // Hide game-wrapper via class removal (not inline style) to avoid override on re-entry
+  const gwEl = document.getElementById('game-wrapper');
+  gwEl.classList.remove('active');
+  gwEl.style.display = '';
+  // Hide all other panels via inline style
+  const hide = ['stats-panel','difficulty-panel','message-bar','controls',
+    'btn-host-deal','room-badge','net-badge','chat-panel','btn-main-menu'];
+  hide.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) { el.style.display='none'; el.classList && el.classList.remove('active','show'); }
+  });
+  document.getElementById('winner-overlay').classList.remove('show');
+  document.getElementById('bust-overlay').style.display = 'none';
+  EL['gameover-overlay'].style.display = 'none';
+  // Fix #4: clear the is-you highlight from whichever seat was active
+  for (let i = 0; i < 6; i++) {
+    const infoEl = document.getElementById(`info-${i}`);
+    if (infoEl) infoEl.classList.remove('is-you');
+  }
+  document.getElementById('chat-messages').innerHTML = '';
+  document.getElementById('lobby-status').textContent = '';
+  document.getElementById('lobby-error').textContent = '';
+  document.getElementById('host-room-area').style.display = 'none';
+  document.getElementById('btn-host').style.display = 'inline-block';
+  document.getElementById('btn-host').disabled = false;
+  document.getElementById('btn-join').disabled = false;
+  document.getElementById('room-code-input').value = '';
+  document.getElementById('diff-rows').innerHTML = '';
+  document.getElementById('lobby').style.display = 'block';
+}
 </script>
+
+
+<!-- Chat Panel (inside game-wrapper via JS move, kept here as sibling for layout) -->
+<div id="chat-panel">
+  <div id="chat-header" onclick="toggleChat()">
+    <span id="chat-header-title">💬 Table Chat</span>
+    <span id="chat-unread"></span>
+    <span id="chat-toggle-icon">▲</span>
+  </div>
+  <div id="chat-body">
+    <div id="chat-messages"></div>
+    <div id="chat-input-row">
+      <input id="chat-input" placeholder="Say something…" maxlength="150"
+        onkeydown="if(event.key==='Enter') sendChat()">
+      <button id="chat-send" onclick="sendChat()">➤</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
